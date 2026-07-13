@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Older prototype / unrelated scratch files, not part of the game
+farm sim.py
+FarmImg/farmsim.py
+test_2.py
+Untitled-1

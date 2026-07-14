@@ -314,7 +314,7 @@ def main():
 
     idx = 1
     for zone in ("forge", "catacombs", "temple"):
-        for variant in range(2):
+        for variant in range(12):
             make_ground_tile(zone, variant_seed=idx * 13 + variant).save(
                 os.path.join(OUT_DIR, f"UnderworldGround{idx}.png"))
             print(f"wrote UnderworldGround{idx}.png ({zone})")

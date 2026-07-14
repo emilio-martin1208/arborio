@@ -1,4 +1,4 @@
-"""Generates irregular, rounded tilled-soil patches (FarmImg/Soil1-3.png)
+"""Generates irregular, rounded tilled-soil patches (FarmImg/Soil1-12.png)
 to replace the old perfect-square dirt tile. Each is a random organic
 blob so planted plots look hand-tilled rather than gridded. Re-run to
 regenerate/tweak.
@@ -69,7 +69,7 @@ def make_soil_tile(seed):
 
 
 def main():
-    for i in range(1, 4):
+    for i in range(1, 13):
         tile = make_soil_tile(seed=i * 29)
         path = os.path.join(OUT_DIR, f"Soil{i}.png")
         tile.save(path)

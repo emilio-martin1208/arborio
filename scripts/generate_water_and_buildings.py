@@ -22,42 +22,82 @@ def s(v):
 
 
 # --------------------------------------------------------------- water --
-# The tile itself is one square with three ripple frames. In-game they're
-# cycled slowly and drawn oversized like grass so pond edges spill across
-# tile boundaries rather than reading as a perfect square lake.
+# Same technique as the grass tiles (see _make_edge_mask in
+# generate_ground_tiles.py): each tile is drawn oversized and overlapping
+# its neighbors, with a guaranteed-solid core but an irregular, blurred
+# alpha silhouette at the margin instead of a flat opaque square — that
+# alpha falloff is what actually breaks up the "grid of blue squares" look;
+# oversized-overlap rendering alone does nothing without it. 12 shape
+# variants (matching the 12 grass ground variants per biome) keep a whole
+# lake from reading as one shape stamped over and over — farm.py assigns a
+# variant per tile via coherent noise so patches of the same shape blend into their
+# neighbors rather than every tile repeating identically.
 GRASS_FRAME_SIZE = 46  # match EXPORT_CELL in generate_ground_tiles.py
 OVERFLOW = (GRASS_FRAME_SIZE - CELL) / (2 * CELL)  # ~0.22
+WATER_VARIANTS = 12
 
 
-def make_water_frame(phase):
+def _make_water_edge_mask(rng):
+    export_cs = GRASS_FRAME_SIZE * SCALE
+    margin = export_cs * (OVERFLOW / (1 + 2 * OVERFLOW))
+    mask = Image.new("L", (export_cs, export_cs), 0)
+    mdraw = ImageDraw.Draw(mask)
+    mdraw.rectangle([margin, margin, export_cs - margin, export_cs - margin], fill=255)
+
+    # Fewer, larger, much-softer-blurred bumps than the grass mask: water has
+    # no internal texture to distract the eye, so a tight scalloped edge reads
+    # as a cartoon cloud/flower shape instead of a natural shoreline ripple.
+    edge_lines = [
+        lambda t: (margin + t * (export_cs - 2 * margin), margin),
+        lambda t: (margin + t * (export_cs - 2 * margin), export_cs - margin),
+        lambda t: (margin, margin + t * (export_cs - 2 * margin)),
+        lambda t: (export_cs - margin, margin + t * (export_cs - 2 * margin)),
+    ]
+    for edge_fn in edge_lines:
+        for _ in range(2):
+            t = rng.uniform(0.15, 0.85)
+            x, y = edge_fn(t)
+            r = rng.uniform(margin * 0.35, margin * 0.7)
+            mdraw.ellipse([x - r, y - r, x + r, y + r], fill=255)
+
+    return mask.filter(ImageFilter.GaussianBlur(radius=max(1.0, export_cs * 0.045)))
+
+
+def make_water_frame(variant_seed, phase):
     """phase: 0..2 — subtle ripple positions offset per frame so still water
-    slowly rolls without looking mechanical. Blends a soft light band across."""
+    slowly rolls without looking mechanical. variant_seed reseeds the RNG
+    from scratch each call so the edge mask (drawn last, from whatever RNG
+    state remains) is identical across all 3 phases of the same variant —
+    the coastline shape doesn't wobble as the ripple animates, only the
+    ripples inside it move."""
+    rng = random.Random(variant_seed)
     export_cs = GRASS_FRAME_SIZE * SCALE
     c = Image.new("RGBA", (export_cs, export_cs), (0, 0, 0, 0))
     d = ImageDraw.Draw(c)
     deep = (54, 96, 156, 255)
     mid = (86, 138, 200, 255)
     shine = (176, 208, 240, 255)
-    # base fill with a soft radial-ish gradient by stacking blurred blobs
     d.rectangle([0, 0, export_cs, export_cs], fill=deep)
     for i in range(6):
         bx = export_cs * (0.15 + i * 0.15 + phase * 0.03)
         by = export_cs * (0.3 + math.sin(i + phase) * 0.12)
         r = export_cs * 0.28
         d.ellipse([bx - r, by - r, bx + r, by + r], fill=mid)
-    # a few thin ripple highlights
     for i in range(3):
         y = export_cs * (0.22 + i * 0.24 + phase * 0.03)
         d.arc([export_cs * 0.15, y - export_cs * 0.04, export_cs * 0.85, y + export_cs * 0.04],
               0, 180, fill=shine, width=max(1, int(export_cs * 0.008)))
     c = c.filter(ImageFilter.GaussianBlur(radius=SCALE * 0.4))
+
+    edge_mask = _make_water_edge_mask(rng)
+    c.putalpha(edge_mask)
     return c.resize((GRASS_FRAME_SIZE, GRASS_FRAME_SIZE), Image.NEAREST)
 
 
-def make_water_strip():
+def make_water_strip(variant_seed):
     strip = Image.new("RGBA", (GRASS_FRAME_SIZE * 3, GRASS_FRAME_SIZE), (0, 0, 0, 0))
     for i in range(3):
-        strip.paste(make_water_frame(i), (i * GRASS_FRAME_SIZE, 0))
+        strip.paste(make_water_frame(variant_seed, i), (i * GRASS_FRAME_SIZE, 0))
     return strip
 
 
@@ -204,8 +244,9 @@ def make_sword():
 
 
 def main():
-    make_water_strip().save(os.path.join(OUT_DIR, "Water.png"))
-    print("wrote Water.png (3-frame ripple strip)")
+    for i in range(1, WATER_VARIANTS + 1):
+        make_water_strip(variant_seed=i * 97).save(os.path.join(OUT_DIR, f"Water{i}.png"))
+        print(f"wrote Water{i}.png (3-frame ripple strip)")
     make_blacksmith().save(os.path.join(OUT_DIR, "Blacksmith.png"))
     print("wrote Blacksmith.png")
     make_fisherman_shack().save(os.path.join(OUT_DIR, "FishermanShack.png"))

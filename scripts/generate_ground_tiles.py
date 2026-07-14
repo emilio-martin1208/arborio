@@ -1,4 +1,4 @@
-"""Regenerates the grass ground tiles (FarmImg/Ground1..6.png) as
+"""Regenerates the grass/sand ground tiles (FarmImg/Ground1..48.png) as
 3-frame wind-sway animation strips with natural color variation between
 patches, plus a couple of small sparse flower decorations
 (FarmImg/Decor1-2.png) that get scattered thinly on top by farm.py.
@@ -6,7 +6,14 @@ patches, plus a couple of small sparse flower decorations
 Each Ground file is a horizontal strip of 3 frames (neutral, lean-left,
 lean-right) — the same blade layout redrawn with tilted tips, so it
 reads as blades swaying rather than a flicker. Re-run to tweak.
+
+Palettes are generated programmatically (12 per biome family) by jittering
+hue/saturation/lightness around one anchor color per family, rather than
+hand-authoring dozens of near-identical tuples — the family still reads as
+one cohesive biome (same hue neighborhood) while every tile is a little
+different, instead of the same 2-6 textures repeating constantly.
 """
+import colorsys
 import math
 import os
 import random
@@ -23,38 +30,54 @@ EXPORT_CELL = round(CELL * (1 + 2 * OVERFLOW))  # 46
 AREA_RATIO = (EXPORT_CELL / CELL) ** 2
 CS = EXPORT_CELL * SCALE
 
-# Each palette is a subtly different natural grass patch (sun/shade/moisture
-# variation) rather than a wildly different texture, so the field still
-# reads as one cohesive lawn. Grouped per-biome; meadow and maple forest
-# share the same ground (only their tree mix differs).
-VARIANT_PALETTES = [
-    dict(base=(94, 153, 64), light=(118, 178, 86), dark=(76, 126, 50)),
-    dict(base=(104, 150, 58), light=(128, 174, 80), dark=(84, 122, 46)),
-    dict(base=(80, 142, 72), light=(102, 166, 94), dark=(62, 114, 56)),
-    dict(base=(110, 158, 62), light=(134, 182, 84), dark=(88, 130, 48)),
-    dict(base=(88, 134, 60), light=(110, 158, 82), dark=(68, 108, 46)),
-    dict(base=(98, 156, 74), light=(122, 180, 96), dark=(78, 128, 58)),
-]
+VARIANTS_PER_FAMILY = 12
+
+
+def _hls_to_rgb255(h, l, s):
+    r, g, b = colorsys.hls_to_rgb(h % 1.0, max(0.03, min(0.97, l)), max(0.0, min(1.0, s)))
+    return (round(r * 255), round(g * 255), round(b * 255), 255)
+
+
+def make_palette_family(anchor_rgb, count, seed, hue_jitter=0.025, sat_jitter=0.10, light_jitter=0.05,
+                         light_step=0.13, dark_step=0.15):
+    """count (base, light, dark) palettes clustered around one anchor color —
+    same hue neighborhood (so the biome still reads as one cohesive lawn),
+    each with its own small sun/shade/moisture-style push in hue/sat/lightness."""
+    rng = random.Random(seed)
+    r, g, b = [c / 255 for c in anchor_rgb]
+    anchor_h, anchor_l, anchor_s = colorsys.rgb_to_hls(r, g, b)
+    palettes = []
+    for _ in range(count):
+        h = anchor_h + rng.uniform(-hue_jitter, hue_jitter)
+        s = anchor_s + rng.uniform(-sat_jitter, sat_jitter)
+        l = anchor_l + rng.uniform(-light_jitter, light_jitter)
+        palettes.append(dict(
+            base=_hls_to_rgb255(h, l, s),
+            light=_hls_to_rgb255(h, l + light_step, s),
+            dark=_hls_to_rgb255(h, l - dark_step, s),
+        ))
+    return palettes
+
+
+# Grouped per-biome; meadow and maple forest share the same ground (only
+# their tree mix differs). Each family's anchor color is the original
+# hand-picked base tone from before this was made procedural.
+VARIANT_PALETTES = make_palette_family((94, 153, 64), VARIANTS_PER_FAMILY, seed=1001)
 DIRT_FLECK = (118, 96, 66, 140)
 
 # Sakura grove: soft green with pale pink fallen-petal flecks instead of dirt
-SAKURA_PALETTES = [
-    dict(base=(120, 162, 108), light=(144, 186, 130), dark=(98, 136, 88)),
-    dict(base=(132, 168, 118), light=(156, 192, 140), dark=(108, 144, 96)),
-]
+SAKURA_PALETTES = make_palette_family((120, 162, 108), VARIANTS_PER_FAMILY, seed=1002,
+                                       hue_jitter=0.02, sat_jitter=0.08)
 PETAL_FLECK = (240, 196, 210, 210)
 
 # Jungle: deep, saturated, denser green
-JUNGLE_PALETTES = [
-    dict(base=(38, 108, 56), light=(54, 132, 70), dark=(24, 82, 42)),
-    dict(base=(46, 118, 62), light=(64, 142, 78), dark=(30, 90, 48)),
-]
+JUNGLE_PALETTES = make_palette_family((38, 108, 56), VARIANTS_PER_FAMILY, seed=1003,
+                                       hue_jitter=0.02, sat_jitter=0.08)
 
 # Desert: sand, no blades — static texture (dunes/pebbles instead of grass)
-SAND_PALETTES = [
-    dict(base=(216, 190, 140), light=(232, 208, 160), dark=(190, 164, 114)),
-    dict(base=(206, 178, 128), light=(224, 198, 150), dark=(180, 152, 104)),
-]
+SAND_PALETTES = make_palette_family((216, 190, 140), VARIANTS_PER_FAMILY, seed=1004,
+                                     hue_jitter=0.015, sat_jitter=0.06, light_jitter=0.04,
+                                     light_step=0.08, dark_step=0.11)
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "FarmImg")
 
@@ -195,8 +218,8 @@ def make_flower_decor(kind):
 
 
 def main():
-    # Ground1-6: meadow/maple (shared). Ground7-8: sakura. Ground9-10: jungle.
-    # Ground11-12: desert sand. Indices are fixed contracts with farm.py's
+    # Ground1-12: meadow/maple (shared). Ground13-24: sakura. Ground25-36: jungle.
+    # Ground37-48: desert sand. Indices are fixed contracts with farm.py's
     # BIOME_GROUND_INDICES — keep this order in sync if it changes.
     idx = 1
     for palette in VARIANT_PALETTES:

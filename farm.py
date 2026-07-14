@@ -70,8 +70,8 @@ IMG_WALL = load_image("Wall.png")
 # instead of every tile reading as a hard perfect square.
 GRASS_FRAME_SIZE = 46  # must match EXPORT_CELL in scripts/generate_ground_tiles.py
 GRASS_OVERFLOW_SCALE = GRASS_FRAME_SIZE / 32  # 32 = the nominal 1-tile size
-# Ground1-6 meadow/maple, 7-8 sakura, 9-10 jungle, 11-12 desert (see BIOME_GROUND_INDICES)
-GROUND_VARIANT_COUNT = 12
+# Ground1-12 meadow/maple, 13-24 sakura, 25-36 jungle, 37-48 desert (see BIOME_GROUND_INDICES)
+GROUND_VARIANT_COUNT = 48
 
 
 def load_grass_frames(name):
@@ -82,9 +82,14 @@ def load_grass_frames(name):
 
 GROUND_FRAMES = [load_grass_frames(f"Ground{i}.png") for i in range(1, GROUND_VARIANT_COUNT + 1)]
 
-# Water: 3-frame ripple strip, same 46px oversized-tile format as grass so
-# pond edges spill across tile boundaries rather than reading as a square lake.
-WATER_FRAMES = load_grass_frames("Water.png")
+# Water: 4 shape variants (like the grass ground variants), each a 3-frame
+# ripple strip in the same 46px oversized-tile format with its own irregular
+# soft-alpha edge so lake tiles blend into each other and into the shore
+# instead of reading as a grid of flat blue squares. farm.py assigns a
+# variant per tile via coherent noise so a whole lake doesn't repeat one
+# shape identically tile after tile.
+WATER_VARIANT_COUNT = 12
+WATER_FRAMES = [load_grass_frames(f"Water{i}.png") for i in range(1, WATER_VARIANT_COUNT + 1)]
 
 
 def water_frame_for(x, y, ticks):
@@ -155,8 +160,10 @@ HORSE_SPEED_MULT = 2  # tiles moved per keypress while mounted
 # underground realm. Ground tiles are static (no wind-sway needed for stone),
 # grouped 2-per-zone like the biome ground variants above.
 UNDERWORLD_ZONES = ["forge", "catacombs", "temple"]
-UNDERWORLD_GROUND_IMAGES = [load_image(f"UnderworldGround{i}.png") for i in range(1, 7)]
-UNDERWORLD_GROUND_INDICES = {"forge": [0, 1], "catacombs": [2, 3], "temple": [4, 5]}
+UNDERWORLD_GROUND_IMAGES = [load_image(f"UnderworldGround{i}.png") for i in range(1, 37)]
+UNDERWORLD_GROUND_INDICES = {
+    "forge": list(range(0, 12)), "catacombs": list(range(12, 24)), "temple": list(range(24, 36)),
+}
 UNDERWORLD_OBSTACLE_IMAGES = [load_image(f"UnderworldObstacle{i}.png") for i in range(1, 4)]
 UNDERWORLD_OBSTACLE_INDEX = {"forge": 0, "catacombs": 1, "temple": 2}
 UNDERWORLD_DECOR_IMAGES = [load_image(f"UnderworldDecor{i}.png") for i in range(1, 4)]
@@ -207,7 +214,7 @@ VILLAGER_GREETINGS = [
 IMG_EMERALD = load_image("Emerald.png")
 
 # Irregular tilled-soil patches (chosen per plot so plots don't look gridded)
-SOIL_IMAGES = [load_image("Soil1.png"), load_image("Soil2.png"), load_image("Soil3.png")]
+SOIL_IMAGES = [load_image(f"Soil{i}.png") for i in range(1, 13)]
 
 # Generic growth-stage art shared by all crop types before they mature,
 # plus the withered/dead stage shown if a ripe crop isn't harvested in time.
@@ -427,7 +434,11 @@ def _smoothstep(t):
     return t * t * (3 - 2 * t)
 
 
-def region_variant(x, y, cell=NOISE_CELL, bins=GROUND_VARIANT_COUNT):
+def _smooth_noise(x, y, cell):
+    """Continuous 2D value noise in [0, 1) — the same interpolated-hash
+    technique region_variant bins into a discrete variant index, exposed
+    here as a raw float for anything that needs a smooth wiggle (like a
+    lake's coastline) rather than a bucketed choice."""
     gx, gy = x / cell, y / cell
     gx0, gy0 = int(gx), int(gy)
     tx, ty = _smoothstep(gx - gx0), _smoothstep(gy - gy0)
@@ -435,7 +446,11 @@ def region_variant(x, y, cell=NOISE_CELL, bins=GROUND_VARIANT_COUNT):
     v01, v11 = _noise_value(gx0, gy0 + 1), _noise_value(gx0 + 1, gy0 + 1)
     top = v00 * (1 - tx) + v10 * tx
     bottom = v01 * (1 - tx) + v11 * tx
-    value = top * (1 - ty) + bottom * ty
+    return top * (1 - ty) + bottom * ty
+
+
+def region_variant(x, y, cell=NOISE_CELL, bins=GROUND_VARIANT_COUNT):
+    value = _smooth_noise(x, y, cell)
     return max(0, min(bins - 1, int(value * bins)))
 
 
@@ -455,13 +470,15 @@ BIOME_NAMES = ["meadow", "maple", "sakura", "jungle", "desert"]
 BIOME_NOISE_CELL = 40  # large so each biome forms a real, explorable region on the bigger map
 BIOME_SAFE_RADIUS = 11  # tiles around the house that are always meadow
 
-# Indices into GROUND_FRAMES / TREE_IMAGES per biome (0-based)
+# Indices into GROUND_FRAMES / TREE_IMAGES per biome (0-based). 12 variants
+# per biome family (see generate_ground_tiles.py) instead of just 2-6, so
+# the same handful of textures don't repeat constantly across a big field.
 BIOME_GROUND_INDICES = {
-    "meadow": list(range(0, 6)),
-    "maple": list(range(0, 6)),
-    "sakura": [6, 7],
-    "jungle": [8, 9],
-    "desert": [10, 11],
+    "meadow": list(range(0, 12)),
+    "maple": list(range(0, 12)),
+    "sakura": list(range(12, 24)),
+    "jungle": list(range(24, 36)),
+    "desert": list(range(36, 48)),
 }
 BIOME_TREE_INDICES = {
     "meadow": [0, 1, 2, 3, 5],       # oak, tall_oak, pine, bushy, sapling
@@ -497,7 +514,8 @@ farm = [
             "stable_id": None,
             "ruin_id": None,
             "smithy_id": None,
-            "shack_id": None
+            "shack_id": None,
+            "water_variant": None
         }
         for x in range(WORLD_W)
     ]
@@ -578,25 +596,6 @@ xp_needed = 10 + level**2 * 8  # matches the quadratic level-up curve below
 day_timer = 0.0
 DAY_LENGTH = 45.0  # seconds of real time the HUD clock treats as one in-game day
 
-#Wind gusts sweeping across the grass
-def make_wind_overlay(height):
-    band_w, gap, overlay_w = 26, 34, 220
-    surf = pygame.Surface((overlay_w, height), pygame.SRCALPHA)
-    x = 0
-    while x < overlay_w:
-        pygame.draw.polygon(surf, (255, 255, 255, 40),
-                             [(x, 0), (x + band_w, 0), (x + band_w - 40, height), (x - 40, height)])
-        x += band_w + gap
-    return surf
-
-
-WIND_OVERLAY = make_wind_overlay(HEIGHT - UI_BAR_HEIGHT)  # only sweep over the farm view, not the UI bar
-WIND_GUST_INTERVAL = 8.0
-WIND_GUST_DURATION = 1.6
-wind_gust_timer = 0.0
-wind_gust_active = False
-wind_gust_progress = 0.0
-wind_gust_x = 0.0
 
 #Weather: rain and snow are mutually exclusive periodic events. weather_timer
 #counts toward the next event while calm; rain_timer/snow_timer count down
@@ -1049,7 +1048,11 @@ water_bodies = []  # list of (center_x, center_y) so villages can be placed near
 
 def stamp_water_body(cx, cy, target_size):
     """BFS-ish organic fill: start at the center, march outward, keep tiles
-    that pass a distance-plus-noise threshold. Skips already-claimed tiles."""
+    that pass a distance-plus-noise threshold. Uses smooth (bilinearly
+    interpolated) noise rather than raw per-tile jitter, so the coastline
+    forms real coherent coves and headlands instead of a jittery/blocky
+    circle — a hash-per-tile perturbation is uncorrelated noise, not a wiggle.
+    Skips already-claimed tiles."""
     stamped = 0
     max_r = int(math.sqrt(target_size / math.pi) + 2)
     for dy in range(-max_r, max_r + 1):
@@ -1062,12 +1065,17 @@ def stamp_water_body(cx, cy, target_size):
             if farm[y][x]["state"] != "grass":
                 continue
             r = math.hypot(dx, dy)
-            # noise perturbs the effective radius so edges are ragged
-            noise_r = r + _noise_value(x * 3, y * 3) * 2.4 - 1.2
-            if noise_r > max_r * 0.92:
+            # smooth noise, coherent over a few tiles, perturbs the effective
+            # radius so the shoreline curves naturally instead of jittering
+            wiggle = _smooth_noise(x, y, cell=3.2) - 0.5
+            noise_r = r + wiggle * max_r * 0.7
+            if noise_r > max_r:
                 continue
             farm[y][x]["state"] = "water"
             farm[y][x]["ground_static"] = None  # water rendering owns the base layer
+            # a different noise cell than the wiggle above, so shape-variant
+            # patches don't line up with (and telegraph) the coastline noise
+            farm[y][x]["water_variant"] = region_variant(x, y, cell=2.3, bins=WATER_VARIANT_COUNT)
             MAP_SURFACE.set_at((x, y), (68, 128, 200))  # blue on the world map overlay
             stamped += 1
     if stamped > 0:
@@ -1411,7 +1419,7 @@ underworld = [
         {
             "state": "floor",  # floor | obstacle | portal
             "zone": (uzone := underworld_zone_for(x, y)),
-            "ground_variant": UNDERWORLD_GROUND_INDICES[uzone][region_variant(x, y, cell=5, bins=2)],
+            "ground_variant": UNDERWORLD_GROUND_INDICES[uzone][region_variant(x, y, cell=5, bins=12)],
             "decor": UNDERWORLD_DECOR_IMAGES[UNDERWORLD_DECOR_INDEX[uzone]]
                      if random.random() < UNDERWORLD_DECOR_CHANCE else None,
         }
@@ -1757,20 +1765,6 @@ while running:
         else:
             villager["walk_timer"] = 0.0
             villager["frame_index"] = 0
-
-    #Wind gust timing
-    if wind_gust_active:
-        wind_gust_progress += dt / WIND_GUST_DURATION
-        if wind_gust_progress >= 1.0:
-            wind_gust_active = False
-        else:
-            wind_gust_x = -220 + wind_gust_progress * (WIDTH + 440)
-    else:
-        wind_gust_timer += dt
-        if wind_gust_timer >= WIND_GUST_INTERVAL:
-            wind_gust_timer = 0.0
-            wind_gust_active = True
-            wind_gust_progress = 0.0
 
     #Rain / snow: mutually exclusive periodic weather with real falling
     #particles (rendered in the farm scene further down), instead of just a
@@ -2376,7 +2370,7 @@ while running:
                 if tile["state"] == "water":
                     # Water is drawn oversized like grass so pond edges spill
                     # across tile boundaries rather than reading as a hard square
-                    ground_img = WATER_FRAMES[water_frame_for(x, y, current_ticks)]
+                    ground_img = WATER_FRAMES[tile["water_variant"]][water_frame_for(x, y, current_ticks)]
                     overflow_size = int(tile_draw_size * GRASS_OVERFLOW_SCALE)
                     ground_scaled = pygame.transform.scale(ground_img, (overflow_size, overflow_size))
                     offset = (overflow_size - tile_draw_size) // 2
@@ -2524,10 +2518,6 @@ while running:
             sprite_set = ANIMAL_IMAGES if animal["facing_right"] else ANIMAL_IMAGES_FLIPPED
             animal_scaled = pygame.transform.scale(sprite_set[animal["species"]], (tile_draw_size, tile_draw_size))
             screen.blit(animal_scaled, (a_draw_x, a_draw_y - bob))
-
-        #Wind gust sweeping across the field
-        if wind_gust_active:
-            screen.blit(WIND_OVERLAY, (int(wind_gust_x), 0))
 
         draw_size = tile_draw_size
         px = (player_x - cam_x) * tile_draw_size

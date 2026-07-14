@@ -138,10 +138,51 @@ def make_leaf_pile():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_ice_crystal():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+    ice = (176, 220, 236, 220)
+    ice_light = (224, 244, 250, 230)
+    cx, cy = CS * 0.5, CS * 0.62
+    for angle_deg in (0, 60, 120, 180, 240, 300):
+        import math as _m
+        angle = _m.radians(angle_deg - 90)
+        length = CS * 0.22
+        tip = (cx + _m.cos(angle) * length, cy + _m.sin(angle) * length)
+        draw.line([(cx, cy), tip], fill=ice, width=max(1, int(CS * 0.025)))
+        mid = (cx + _m.cos(angle) * length * 0.55, cy + _m.sin(angle) * length * 0.55)
+        side = _m.radians(angle_deg - 90 + 90)
+        branch = CS * 0.07
+        draw.line([mid, (mid[0] + _m.cos(side) * branch, mid[1] + _m.sin(side) * branch)], fill=ice, width=max(1, int(CS * 0.018)))
+        draw.line([mid, (mid[0] - _m.cos(side) * branch, mid[1] - _m.sin(side) * branch)], fill=ice, width=max(1, int(CS * 0.018)))
+    draw.ellipse([cx - CS * 0.05, cy - CS * 0.05, cx + CS * 0.05, cy + CS * 0.05], fill=ice_light)
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
+def make_snow_mound():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+    snow = (238, 244, 248, 255)
+    snow_shade = (206, 220, 230, 255)
+    sparkle = (255, 255, 255, 255)
+    cx, cy = CS * 0.5, CS * 0.62
+    draw.ellipse([cx - CS * 0.24, cy - CS * 0.14, cx + CS * 0.24, cy + CS * 0.2], fill=snow)
+    draw.ellipse([cx - CS * 0.24, cy, cx + CS * 0.24, cy + CS * 0.2], fill=snow_shade)
+    draw.ellipse([cx - CS * 0.12, cy - CS * 0.22, cx + CS * 0.1, cy - CS * 0.02], fill=snow)
+    for dx, dy in ((-0.1, -0.05), (0.12, 0.02), (0.0, 0.1)):
+        draw.ellipse([cx + dx * CS - CS * 0.015, cy + dy * CS - CS * 0.015,
+                      cx + dx * CS + CS * 0.015, cy + dy * CS + CS * 0.015], fill=sparkle)
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_tumbleweed().save(os.path.join(OUT_DIR, "DesertDecor1.png"))
     make_bleached_bones().save(os.path.join(OUT_DIR, "DesertDecor2.png"))
     print("wrote DesertDecor1-2.png")
+
+    make_ice_crystal().save(os.path.join(OUT_DIR, "TundraDecor1.png"))
+    make_snow_mound().save(os.path.join(OUT_DIR, "TundraDecor2.png"))
+    print("wrote TundraDecor1-2.png")
 
     make_mushroom_cluster(3, (196, 60, 56, 255), (162, 42, 40, 255)).save(os.path.join(OUT_DIR, "JungleDecor1.png"))
     make_fern().save(os.path.join(OUT_DIR, "JungleDecor2.png"))

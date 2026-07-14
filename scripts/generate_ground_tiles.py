@@ -79,6 +79,12 @@ SAND_PALETTES = make_palette_family((216, 190, 140), VARIANTS_PER_FAMILY, seed=1
                                      hue_jitter=0.015, sat_jitter=0.06, light_jitter=0.04,
                                      light_step=0.08, dark_step=0.11)
 
+# Tundra: snow, no blades — soft drift mounds + sparkle flecks instead of grass
+SNOW_PALETTES = make_palette_family((222, 230, 238), VARIANTS_PER_FAMILY, seed=1005,
+                                     hue_jitter=0.02, sat_jitter=0.05, light_jitter=0.03,
+                                     light_step=0.05, dark_step=0.09)
+SNOW_SPARKLE = (255, 255, 255, 220)
+
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "FarmImg")
 
 
@@ -183,6 +189,40 @@ def make_sand_strip(variant_seed, palette):
     return strip
 
 
+def make_snow_frame(variant_seed, palette):
+    """Snow doesn't sway either — soft drift mounds + sparkle flecks instead
+    of sand's dunes+pebbles, same edge-mask/overlap treatment as everything else."""
+    rng = random.Random(variant_seed)
+    canvas = Image.new("RGBA", (CS, CS), palette["base"])
+    draw = ImageDraw.Draw(canvas)
+
+    for _ in range(rng.randint(8, 14)):
+        x = rng.uniform(0, CS)
+        y = rng.uniform(0, CS)
+        w = rng.uniform(CS * 0.1, CS * 0.24)
+        h = rng.uniform(CS * 0.03, CS * 0.06)
+        shade = palette["light"] if rng.random() < 0.6 else palette["dark"]
+        draw.ellipse([x - w, y - h, x + w, y + h], fill=shade)
+
+    for _ in range(rng.randint(5, 9)):
+        x, y = rng.uniform(0, CS), rng.uniform(0, CS)
+        r = rng.uniform(CS * 0.006, CS * 0.014)
+        draw.ellipse([x - r, y - r, x + r, y + r], fill=SNOW_SPARKLE)
+
+    edge_mask = _make_edge_mask(rng)
+    canvas.putalpha(edge_mask)
+
+    return canvas.resize((EXPORT_CELL, EXPORT_CELL), Image.NEAREST)
+
+
+def make_snow_strip(variant_seed, palette):
+    frame = make_snow_frame(variant_seed, palette)
+    strip = Image.new("RGBA", (EXPORT_CELL * 3, EXPORT_CELL), (0, 0, 0, 0))
+    for i in range(3):
+        strip.paste(frame, (i * EXPORT_CELL, 0))
+    return strip
+
+
 def make_flower_decor(kind):
     canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
     draw = ImageDraw.Draw(canvas)
@@ -219,8 +259,8 @@ def make_flower_decor(kind):
 
 def main():
     # Ground1-12: meadow/maple (shared). Ground13-24: sakura. Ground25-36: jungle.
-    # Ground37-48: desert sand. Indices are fixed contracts with farm.py's
-    # BIOME_GROUND_INDICES — keep this order in sync if it changes.
+    # Ground37-48: desert sand. Ground49-60: tundra snow. Indices are fixed
+    # contracts with farm.py's BIOME_GROUND_INDICES — keep this order in sync.
     idx = 1
     for palette in VARIANT_PALETTES:
         strip = make_grass_strip(variant_seed=idx * 17, palette=palette)
@@ -248,6 +288,13 @@ def main():
         path = os.path.join(OUT_DIR, f"Ground{idx}.png")
         strip.save(path)
         print(f"wrote {path} [desert]")
+        idx += 1
+
+    for palette in SNOW_PALETTES:
+        strip = make_snow_strip(variant_seed=idx * 17, palette=palette)
+        path = os.path.join(OUT_DIR, f"Ground{idx}.png")
+        strip.save(path)
+        print(f"wrote {path} [tundra]")
         idx += 1
 
     for kind, name in [("purple", "Decor1"), ("daisy", "Decor2")]:

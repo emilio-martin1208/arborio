@@ -3,6 +3,7 @@ import os
 import random
 
 import pygame
+from PIL import Image, ImageDraw, ImageFilter
 
 pygame.init()
 
@@ -11,7 +12,7 @@ TILE_SIZE = 50
 INITIAL_VIEW_TILES = 10
 UI_BAR_HEIGHT = 120
 
-WORLD_W, WORLD_H = 200, 200
+WORLD_W, WORLD_H = 320, 320
 WIDTH = INITIAL_VIEW_TILES * TILE_SIZE
 HEIGHT = INITIAL_VIEW_TILES * TILE_SIZE + UI_BAR_HEIGHT
 #SCALED renders at the internal WIDTH x HEIGHT then scales the whole
@@ -50,6 +51,7 @@ IMG_GRAPE = load_image("Grape.png")
 IMG_APPLE = load_image("Apple.png")
 IMG_SUNFLOWER = load_image("Sunflower.png")
 IMG_FISH = load_image("Fish.png")
+IMG_FISH_FLIPPED = pygame.transform.flip(IMG_FISH, True, False)
 CROP_IMAGES = {
     "corn": IMG_CORN, "tomato": IMG_TOMATO, "pumpkin": IMG_PUMPKIN, "carrot": IMG_CARROT,
     "potato": IMG_POTATO, "wheat": IMG_WHEAT, "strawberry": IMG_STRAWBERRY, "blueberry": IMG_BLUEBERRY,
@@ -127,13 +129,14 @@ BIOME_DECOR_IMAGES = {
     "sakura": [load_image("SakuraDecor1.png"), load_image("SakuraDecor2.png")],
     "jungle": [load_image("JungleDecor1.png"), load_image("JungleDecor2.png")],
     "desert": [load_image("DesertDecor1.png"), load_image("DesertDecor2.png")],
+    "tundra": [load_image("TundraDecor1.png"), load_image("TundraDecor2.png")],
 }
 
 IMG_PATH = load_image("Path.png")
 
 # Trees: 1 tile wide x 2 tiles tall, anchored at the bottom like the house.
 # 6 species (oak, tall_oak, pine, bushy, maple, sapling) for a mixed forest.
-TREE_IMAGES = [load_image(f"Tree{i}.png") for i in range(1, 10)]
+TREE_IMAGES = [load_image(f"Tree{i}.png") for i in range(1, 11)]
 
 # Peaceful wandering animal mobs (no combat, just ambiance)
 ANIMAL_IMAGES = {"rabbit": load_image("Rabbit.png"), "bird": load_image("Bird.png")}
@@ -149,12 +152,61 @@ IMG_WELL = load_image("Well.png")  # 1 tile, sits flush (no overhang)
 IMG_SHRINE = load_image("Shrine.png")  # 2 tiles wide x 2 tall, anchored like the house
 IMG_BLACKSMITH = load_image("Blacksmith.png")  # 2 tiles wide x 2 tall
 IMG_FISHERMAN_SHACK = load_image("FishermanShack.png")  # 2 tiles wide x 2 tall
+
+# Biome-flavor village centerpieces + walled-kingdom set
+FLAVOR_HOUSE_IMAGES = {
+    "sakura": load_image("SakuraHouse.png"),
+    "desert": load_image("DesertHouse.png"),
+    "snow": load_image("SnowHouse.png"),
+}
+BIOME_TO_FLAVOR = {"sakura": "sakura", "desert": "desert", "tundra": "snow"}
+IMG_WALL_STONE = load_image("WallStone.png")  # 1 tile, flush
+IMG_KINGDOM_GATE = load_image("KingdomGate.png")  # 2 tiles wide x 2 tall, anchored like the house
+KINGDOM_NAMES = ["Ashenfall", "Rivenhall", "Goldmere", "Stonewatch", "Emberkeep", "Thornwall"]
 HORSE_SHEET = load_image("Horse.png")  # 3-frame gallop strip: neutral, stride-A, stride-B
 HORSE_FRAME_SIZE = 32
 HORSE_FRAMES = [HORSE_SHEET.subsurface(pygame.Rect(col * HORSE_FRAME_SIZE, 0, HORSE_FRAME_SIZE, HORSE_FRAME_SIZE))
                 for col in range(3)]
 HORSE_FRAMES_FLIPPED = [pygame.transform.flip(f, True, False) for f in HORSE_FRAMES]
 HORSE_SPEED_MULT = 2  # tiles moved per keypress while mounted
+
+# Farm base-building: a mineable boulder (surface stone/iron node), raw
+# resource icons, processed-goods icons, a construction-site overlay, and
+# every player-constructible building sprite.
+IMG_BOULDER = load_image("Boulder.png")
+RESOURCE_IMAGES = {
+    "wood": load_image("Wood.png"),
+    "stone": load_image("Stone.png"),
+    "iron": load_image("Iron.png"),
+}
+GOODS_IMAGES = {
+    "flour": load_image("Flour.png"),
+    "feed": load_image("Feed.png"),
+    "jam": load_image("Jam.png"),
+    "pickles": load_image("Pickles.png"),
+    "honey": load_image("Honey.png"),
+    "cider": load_image("Cider.png"),
+    "lumber": load_image("Lumber.png"),
+    "bricks": load_image("Bricks.png"),
+    "ingot": load_image("Ingot.png"),
+}
+IMG_CONSTRUCTION_SITE = load_image("ConstructionSite.png")  # 2x2 scaffolding overlay
+FARM_BUILDING_IMAGES = {
+    "mill": load_image("Mill.png"),
+    "preserving_shed": load_image("PreservingShed.png"),
+    "brewery": load_image("Brewery.png"),
+    "workshop": load_image("Workshop.png"),
+    "barn": load_image("Barn.png"),
+    "silo": load_image("Silo.png"),
+    "warehouse": load_image("Warehouse.png"),
+    "farm_well": load_image("FarmWell.png"),
+    "windmill": load_image("Windmill.png"),
+    "greenhouse": load_image("Greenhouse.png"),
+    "beehive": load_image("BeeHive.png"),
+    "orchard_marker": load_image("OrchardMarker.png"),
+    "watchtower": load_image("Watchtower.png"),
+    "magic_ward": load_image("MagicWard.png"),
+}
 
 # Underworld: ancient ruins hidden in the desert lead down into a dangerous
 # underground realm. Ground tiles are static (no wind-sway needed for stone),
@@ -272,6 +324,7 @@ FONT_NAME = "rockwell"  # falls back to the default system font if unavailable
 font = pygame.font.SysFont(FONT_NAME, 26, bold=True)
 ui_font = pygame.font.SysFont(FONT_NAME, 19, bold=True)  # smaller font for in-game UI
 tool_font = pygame.font.SysFont(FONT_NAME, 16, bold=True)  # compact label for the HUD tool slot
+micro_font = pygame.font.SysFont(FONT_NAME, 12, bold=True)  # crop journal cells — tight space
 
 #Text colors and drop-shadow rendering, for a warmer, more readable look
 TEXT_CREAM = (250, 240, 218)
@@ -304,6 +357,25 @@ def wrap_text(font_obj, text, max_width):
     if current:
         lines.append(current)
     return lines
+
+
+def draw_wrapped_centered(surface, font_obj, text, color, center_x, top_y, max_width, line_gap=4, alpha=None):
+    """Word-wraps text to max_width and draws it horizontally centered on
+    center_x, stacked top-to-bottom from top_y. Since every line is at most
+    max_width wide and centered on center_x, as long as center_x/max_width
+    keep the whole block within the screen this can never run off either
+    edge — unlike a single unwrapped render_text call, which just keeps
+    growing wider until it does. Returns the total height drawn, so callers
+    stacking multiple messages can offset the next one below it."""
+    lines = wrap_text(font_obj, text, max_width)
+    y = top_y
+    for line in lines:
+        surf = render_text(font_obj, line, color)
+        if alpha is not None:
+            surf.set_alpha(alpha)
+        surface.blit(surf, (center_x - surf.get_width() // 2, y))
+        y += surf.get_height() + line_gap
+    return y - top_y
 
 
 def draw_clock(surface, center, radius, progress, color=TEXT_CREAM):
@@ -378,17 +450,17 @@ SEEDS = {
     "carrot":     {"name": "Carrot",     "color": (255, 140, 40), "grow_time": 3.0,  "xp": 1.0, "wither_time": 6.0,  "value": 3},
     "tomato":     {"name": "Tomato",     "color": (255, 50, 50),  "grow_time": 4.0,  "xp": 1.2, "wither_time": 8.0,  "value": 4, "unlock_hint": "Reach level 5"},
     "pumpkin":    {"name": "Pumpkin",    "color": (255, 100, 0),  "grow_time": 60.0, "xp": 10,  "wither_time": 40.0, "value": 20, "unlock_hint": "Reach level 3"},
-    "potato":     {"name": "Potato",     "color": (170, 130, 84), "grow_time": 4.0,  "xp": 0.8, "wither_time": 12.0, "value": 3, "unlock_hint": "Buy at a marketplace"},
-    "wheat":      {"name": "Wheat",      "color": (232, 200, 96), "grow_time": 5.0,  "xp": 0.6, "wither_time": 20.0, "value": 2, "unlock_hint": "Trade with the fisherman"},
-    "strawberry": {"name": "Strawberry", "color": (222, 60, 68),  "grow_time": 6.0,  "xp": 1.6, "wither_time": 8.0,  "value": 5, "unlock_hint": "Find at a marketplace"},
-    "blueberry":  {"name": "Blueberry",  "color": (68, 96, 176),  "grow_time": 7.0,  "xp": 2.0, "wither_time": 8.0,  "value": 6, "unlock_hint": "Find at a marketplace"},
+    "potato":     {"name": "Potato",     "color": (170, 130, 84), "grow_time": 4.0,  "xp": 0.8, "wither_time": 12.0, "value": 3, "unlock_hint": "Marketplace"},
+    "wheat":      {"name": "Wheat",      "color": (232, 200, 96), "grow_time": 5.0,  "xp": 0.6, "wither_time": 20.0, "value": 2, "unlock_hint": "Fisherman"},
+    "strawberry": {"name": "Strawberry", "color": (222, 60, 68),  "grow_time": 6.0,  "xp": 1.6, "wither_time": 8.0,  "value": 5, "unlock_hint": "Marketplace"},
+    "blueberry":  {"name": "Blueberry",  "color": (68, 96, 176),  "grow_time": 7.0,  "xp": 2.0, "wither_time": 8.0,  "value": 6, "unlock_hint": "Marketplace"},
     "watermelon": {"name": "Watermelon", "color": (222, 74, 82),  "grow_time": 10.0, "xp": 3.0, "wither_time": 12.0, "value": 8, "unlock_hint": "Reach level 8"},
-    "cabbage":    {"name": "Cabbage",    "color": (108, 172, 92), "grow_time": 5.0,  "xp": 1.2, "wither_time": 14.0, "value": 4, "unlock_hint": "Buy at a marketplace"},
-    "lettuce":    {"name": "Lettuce",    "color": (128, 200, 108),"grow_time": 3.5,  "xp": 0.9, "wither_time": 7.0,  "value": 3, "unlock_hint": "Buy at a marketplace"},
+    "cabbage":    {"name": "Cabbage",    "color": (108, 172, 92), "grow_time": 5.0,  "xp": 1.2, "wither_time": 14.0, "value": 4, "unlock_hint": "Marketplace"},
+    "lettuce":    {"name": "Lettuce",    "color": (128, 200, 108),"grow_time": 3.5,  "xp": 0.9, "wither_time": 7.0,  "value": 3, "unlock_hint": "Marketplace"},
     "eggplant":   {"name": "Eggplant",   "color": (108, 62, 128), "grow_time": 6.0,  "xp": 1.6, "wither_time": 10.0, "value": 5, "unlock_hint": "Reach level 6"},
-    "chili":      {"name": "Chili",      "color": (222, 52, 40),  "grow_time": 5.5,  "xp": 1.5, "wither_time": 9.0,  "value": 5, "unlock_hint": "Trade with the blacksmith"},
-    "cucumber":   {"name": "Cucumber",   "color": (86, 148, 68),  "grow_time": 4.5,  "xp": 1.1, "wither_time": 9.0,  "value": 4, "unlock_hint": "Buy at a marketplace"},
-    "onion":      {"name": "Onion",      "color": (222, 178, 108),"grow_time": 4.0,  "xp": 1.0, "wither_time": 11.0, "value": 3, "unlock_hint": "Buy at a marketplace"},
+    "chili":      {"name": "Chili",      "color": (222, 52, 40),  "grow_time": 5.5,  "xp": 1.5, "wither_time": 9.0,  "value": 5, "unlock_hint": "Blacksmith"},
+    "cucumber":   {"name": "Cucumber",   "color": (86, 148, 68),  "grow_time": 4.5,  "xp": 1.1, "wither_time": 9.0,  "value": 4, "unlock_hint": "Marketplace"},
+    "onion":      {"name": "Onion",      "color": (222, 178, 108),"grow_time": 4.0,  "xp": 1.0, "wither_time": 11.0, "value": 3, "unlock_hint": "Marketplace"},
     "grape":      {"name": "Grape",      "color": (128, 74, 168), "grow_time": 9.0,  "xp": 2.4, "wither_time": 12.0, "value": 7, "unlock_hint": "Reach level 7"},
     "apple":      {"name": "Apple",      "color": (220, 60, 60),  "grow_time": 12.0, "xp": 3.5, "wither_time": 15.0, "value": 9, "unlock_hint": "Reach level 9"},
     "sunflower":  {"name": "Sunflower",  "color": (250, 208, 60), "grow_time": 5.0,  "xp": 2.0, "wither_time": 12.0, "value": 4, "unlock_hint": "Reach level 10"},
@@ -416,6 +488,163 @@ equipped_tool = pick_tool
 hotbar_slots = [{"kind": "seed", "key": k} for k in seed_inventory] + \
                [{"kind": "tool", "tool": t} for t in unlocked_tools]
 drag_slot = None  # index into hotbar_slots currently being dragged, or None
+
+# ============================================================================
+# Farm base-building system: raw resources, a build-your-own set of
+# buildings (storage/production/infrastructure/defense), construction and
+# decay over time, a farming skill track, and periodic underworld raids.
+# The farm starts ruined — a few tiles near the house carry broken-fence/
+# rubble decor that clears as the farm is restored (see FARM_TIERS).
+# ============================================================================
+
+#Raw resources gathered from the surface: wood from chopping trees, stone
+#and iron from mining boulders. A small starting stash reflects the
+#"ruined farm has scraps lying around" framing rather than starting at zero.
+resources = {"wood": 15, "stone": 8, "iron": 0}
+
+#Processed goods produced by production buildings, sellable at markets for
+#more than their raw ingredients.
+goods_inventory = {}
+
+GOODS_INFO = {
+    "flour":   {"name": "Flour",       "image": "flour",   "value": 6},
+    "feed":    {"name": "Animal Feed", "image": "feed",     "value": 5},
+    "jam":     {"name": "Jam",         "image": "jam",      "value": 10},
+    "pickles": {"name": "Pickles",     "image": "pickles",  "value": 9},
+    "honey":   {"name": "Honey",       "image": "honey",    "value": 11},
+    "cider":   {"name": "Cider",       "image": "cider",    "value": 14},
+    "lumber":  {"name": "Lumber",      "image": "lumber",   "value": 4},
+    "bricks":  {"name": "Bricks",      "image": "bricks",   "value": 4},
+    "ingot":   {"name": "Ingot",       "image": "ingot",    "value": 12},
+}
+
+#Farm restoration tiers: a meta-progression readout of how far the farm has
+#come from "abandoned ruin" to "legendary base", driven by how many player
+#buildings are actually finished and standing (see recompute_farm_tier()).
+FARM_TIERS = ["Abandoned Farm", "Basic Homestead", "Functional Farm",
+              "Advanced Agricultural Base", "Legendary Farmstead"]
+farm_tier = 0
+
+#Farming skill: a second, slower XP track fed by the same harvests that
+#drive the main level, unlocking passive farm-wide bonuses at milestones
+#instead of one-off rewards.
+farming_skill_xp = 0.0
+farming_skill_level = 1
+
+
+def farming_skill_xp_needed(lvl):
+    return 20.0 * lvl
+
+
+def farming_skill_growth_mult():
+    """Stacking passive growth-speed bonus from skill milestones."""
+    mult = 1.0
+    if farming_skill_level >= 5:
+        mult *= 1.2
+    if farming_skill_level >= 20:
+        mult *= 1.25
+    return mult
+
+
+def farming_skill_bypasses_winter():
+    """Level 20 'ancient farming technology' — acts like a permanent,
+    farm-wide Greenhouse for winter growth."""
+    return farming_skill_level >= 20
+
+
+def farming_skill_build_discount():
+    """Level 10 'animal breeding' know-how shaves a bit off every build/
+    repair cost rather than simulating full livestock breeding mechanics."""
+    return 0.9 if farming_skill_level >= 10 else 1.0
+
+
+#Winter is the one season that actually slows crop growth (a real reason for
+#the Greenhouse/Well/skill-tree bonuses to matter) — other seasons are
+#neutral. Bypassed by a nearby active Greenhouse or the level-20 skill.
+WINTER_GROWTH_MULT = 0.7
+
+#Every buildable building type: category (for the build menu), footprint in
+#tiles, resource + emerald cost, and how many in-game days construction
+#takes. "days" are measured the same way the rest of the game already
+#measures a day (DAY_LENGTH seconds of real time), not a discrete sleep-to-
+#advance event, so construction quietly progresses whether or not you sleep.
+FARM_BUILDING_TYPES = {
+    "mill":            {"label": "Mill",            "category": "Production",     "footprint": (2, 2), "cost": {"wood": 60, "stone": 20, "emeralds": 40}, "build_days": 2},
+    "preserving_shed": {"label": "Preserving Shed",  "category": "Production",     "footprint": (2, 2), "cost": {"wood": 50, "stone": 15, "emeralds": 35}, "build_days": 2},
+    "brewery":         {"label": "Brewery",          "category": "Production",     "footprint": (2, 2), "cost": {"wood": 40, "stone": 40, "emeralds": 55}, "build_days": 3},
+    "workshop":        {"label": "Workshop",         "category": "Production",     "footprint": (2, 2), "cost": {"wood": 70, "stone": 30, "emeralds": 45}, "build_days": 2},
+    "barn":            {"label": "Barn",             "category": "Storage",       "footprint": (2, 2), "cost": {"wood": 90, "stone": 20, "emeralds": 50}, "build_days": 3},
+    "silo":            {"label": "Silo",             "category": "Storage",       "footprint": (2, 2), "cost": {"wood": 20, "stone": 60, "emeralds": 40}, "build_days": 2},
+    "warehouse":       {"label": "Warehouse",        "category": "Storage",       "footprint": (2, 2), "cost": {"wood": 80, "stone": 50, "emeralds": 60}, "build_days": 3},
+    "farm_well":       {"label": "Well",             "category": "Infrastructure","footprint": (1, 1), "cost": {"stone": 30, "emeralds": 20}, "build_days": 1},
+    "windmill":        {"label": "Windmill",         "category": "Infrastructure","footprint": (2, 2), "cost": {"wood": 70, "stone": 30, "emeralds": 50}, "build_days": 3},
+    "greenhouse":      {"label": "Greenhouse",       "category": "Infrastructure","footprint": (2, 2), "cost": {"wood": 50, "stone": 10, "emeralds": 70}, "build_days": 3},
+    "beehive":         {"label": "Bee Hive",         "category": "Infrastructure","footprint": (1, 1), "cost": {"wood": 15, "emeralds": 15}, "build_days": 1},
+    "orchard_marker":  {"label": "Orchard Plot",     "category": "Infrastructure","footprint": (1, 1), "cost": {"wood": 10, "emeralds": 10}, "build_days": 1},
+    "watchtower":      {"label": "Watchtower",       "category": "Defense",       "footprint": (2, 2), "cost": {"wood": 60, "stone": 20, "emeralds": 45}, "build_days": 2},
+    "magic_ward":      {"label": "Magic Ward",       "category": "Defense",       "footprint": (2, 2), "cost": {"stone": 40, "iron": 15, "emeralds": 60}, "build_days": 2},
+}
+BUILD_MENU_ORDER = list(FARM_BUILDING_TYPES.keys())
+
+#Production recipes: each production building offers a small menu of
+#conversions from raw crops/materials into a higher-value good.
+PRODUCTION_RECIPES = {
+    "mill": [
+        {"name": "Flour (from Wheat)", "input": {"wheat": 4}, "output": "flour", "qty": 2, "time": 8.0},
+        {"name": "Animal Feed (from Corn)", "input": {"corn": 4}, "output": "feed", "qty": 2, "time": 8.0},
+    ],
+    "preserving_shed": [
+        {"name": "Strawberry Jam", "input": {"strawberry": 3}, "output": "jam", "qty": 2, "time": 10.0},
+        {"name": "Blueberry Jam", "input": {"blueberry": 3}, "output": "jam", "qty": 2, "time": 10.0},
+        {"name": "Pickles (from Cucumber)", "input": {"cucumber": 4}, "output": "pickles", "qty": 2, "time": 10.0},
+    ],
+    "brewery": [
+        {"name": "Apple Cider", "input": {"apple": 3}, "output": "cider", "qty": 2, "time": 14.0},
+        {"name": "Grape Cider", "input": {"grape": 4}, "output": "cider", "qty": 2, "time": 14.0},
+    ],
+    "workshop": [
+        {"name": "Lumber (from Wood)", "input": {"wood": 10}, "output": "lumber", "qty": 4, "time": 6.0},
+        {"name": "Bricks (from Stone)", "input": {"stone": 10}, "output": "bricks", "qty": 4, "time": 6.0},
+        {"name": "Ingot (from Iron)", "input": {"iron": 6}, "output": "ingot", "qty": 2, "time": 10.0},
+    ],
+}
+
+#Player-constructed building instances. Each is:
+# {"type", "x", "y", "stage": "building"|"active", "progress_days", "condition"
+#  (0..100), "processing": None or {"recipe_name","time_left","output","qty"}}
+farm_buildings = []
+
+CONDITION_DECAY_PER_DAY = 2.2  # condition points lost per in-game day while active
+CONDITION_WORN = 50
+CONDITION_POOR = 20
+REPAIR_COST_FRACTION = 0.35  # fraction of the original build cost to fully repair
+REPAIR_DAYS = 0.4
+
+build_menu_open = False
+build_menu_selection = 0
+build_message = ""
+build_message_timer = 0.0
+
+building_panel_open = False
+active_building = None
+building_panel_selection = 0
+
+farm_status_open = False
+
+#Ancient-farmstead orchard tiles: once an Orchard Plot is built, apple/grape
+#planted on its own footprint auto-replant on harvest instead of consuming
+#another seed — populated with the marker's footprint tiles.
+orchard_tiles = set()
+
+#Farm defense: once the player has been to the underworld at least once,
+#the surface farm can be raided by demons that wandered up through a ruin.
+has_visited_underworld = False
+farm_demons = []
+RAID_CHECK_INTERVAL = 45.0  # seconds of real time between raid rolls
+RAID_CHANCE = 0.35
+raid_timer = 0.0
+raid_warning_timer = 0.0  # counts down after a Watchtower spots something, before the raid actually spawns
+
 
 #Assigns grass color variants in smooth, organic patches (like natural
 #sun/shade/moisture variation) via 2D value noise, instead of per-tile
@@ -461,12 +690,13 @@ HOUSE_POS = (1, 1)  # kept off the world edge so the roof overhang has room to r
 HOUSE_TILES = {(HOUSE_POS[0] + dx, HOUSE_POS[1]) for dx in range(2)}
 DOOR_ROW = HOUSE_POS[1] + 1
 DOOR_TILES = {(HOUSE_POS[0] + dx, DOOR_ROW) for dx in range(2)}
-FARM_BLOCKED_TILES = HOUSE_TILES | DOOR_TILES  # kept clear of trees/crops
+HOUSE_OVERHANG_TILES = {(x, HOUSE_POS[1] - 1) for x in range(HOUSE_POS[0], HOUSE_POS[0] + 2)}
+FARM_BLOCKED_TILES = HOUSE_TILES | DOOR_TILES | HOUSE_OVERHANG_TILES  # kept clear of trees/crops
 
 #Biomes: large, coarse-noise regions (much bigger than the fine grass-color
 #patches above) assign each part of the world to a distinct biome. The area
 #around the house is always kept as meadow so the starting farm feels stable.
-BIOME_NAMES = ["meadow", "maple", "sakura", "jungle", "desert"]
+BIOME_NAMES = ["meadow", "maple", "sakura", "jungle", "desert", "tundra"]
 BIOME_NOISE_CELL = 40  # large so each biome forms a real, explorable region on the bigger map
 BIOME_SAFE_RADIUS = 11  # tiles around the house that are always meadow
 
@@ -479,6 +709,7 @@ BIOME_GROUND_INDICES = {
     "sakura": list(range(12, 24)),
     "jungle": list(range(24, 36)),
     "desert": list(range(36, 48)),
+    "tundra": list(range(48, 60)),
 }
 BIOME_TREE_INDICES = {
     "meadow": [0, 1, 2, 3, 5],       # oak, tall_oak, pine, bushy, sapling
@@ -486,6 +717,7 @@ BIOME_TREE_INDICES = {
     "sakura": [6, 6, 6, 5],          # mostly sakura, a touch of sapling
     "jungle": [7, 7, 7, 3],          # mostly jungle_tree, a touch of bushy
     "desert": [8],                   # cactus only
+    "tundra": [9, 9, 9, 3],          # mostly snow_pine, a touch of bushy
 }
 
 
@@ -515,7 +747,9 @@ farm = [
             "ruin_id": None,
             "smithy_id": None,
             "shack_id": None,
-            "water_variant": None
+            "water_variant": None,
+            "building_id": None,
+            "kingdom_id": None
         }
         for x in range(WORLD_W)
     ]
@@ -527,7 +761,7 @@ farm = [
 #on top whenever the map is opened, rather than rebuilding it every time.
 MAP_BIOME_COLORS = {
     "meadow": (94, 153, 64), "maple": (176, 108, 58), "sakura": (232, 158, 186),
-    "jungle": (30, 96, 54), "desert": (216, 190, 140),
+    "jungle": (30, 96, 54), "desert": (216, 190, 140), "tundra": (220, 230, 236),
 }
 MAP_SURFACE = pygame.Surface((WORLD_W, WORLD_H))
 for _my in range(WORLD_H):
@@ -1044,6 +1278,89 @@ def apply_reward(reward):
 #organic via a "grow outward from a seed tile, jittered by noise" fill so
 #no lake reads as a perfect circle. Water tiles are non-walkable.
 water_bodies = []  # list of (center_x, center_y) so villages can be placed near them
+water_shapes = []  # {"surface", "x", "y", "w", "h", "tiles"} — one precomputed image per lake/pond
+
+fish = []
+FISH_SPEED = 0.7
+
+
+def spawn_fish_for(water_shape):
+    """A few peaceful fish per lake, wandering only within that lake's exact
+    tile set (not just its bounding box, which can include non-water bleed
+    at odd shape corners) — bigger lakes get more."""
+    tiles = list(water_shape["tiles"])
+    if not tiles:
+        return
+    count = max(1, min(6, len(tiles) // 15))
+    for _ in range(count):
+        x, y = random.choice(tiles)
+        fish.append({
+            "x": float(x) + random.uniform(-0.3, 0.3), "y": float(y) + random.uniform(-0.3, 0.3),
+            "target_x": float(x), "target_y": float(y), "water_tiles": tiles,
+            "facing_right": random.random() < 0.5, "state": "idle", "timer": random.uniform(0.0, 3.0),
+        })
+
+WATER_SHAPE_CELL = 32  # px per tile at generation resolution
+
+
+def _pil_to_pygame(img):
+    return pygame.image.fromstring(img.tobytes(), img.size, img.mode).convert_alpha()
+
+
+def _build_water_shape(tile_set):
+    """Renders a whole lake/pond as ONE soft-edged image instead of a grid of
+    individually-blended water tiles — no per-tile grid can show through
+    because there is no per-tile grid. Built from the exact set of tiles
+    stamp_water_body claimed: filled rounded blocks per tile, blurred into a
+    single smooth silhouette, then a water gradient + a handful of soft
+    highlight streaks painted across the WHOLE shape (not per tile, so
+    nothing repeats). Returns (surface, x, y, w, h) in tile units, already
+    including the margin used for the blur so callers can position/scale it
+    directly against the tile grid with no further offset math."""
+    xs = [x for x, _ in tile_set]
+    ys = [y for _, y in tile_set]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    w_tiles = max_x - min_x + 1
+    h_tiles = max_y - min_y + 1
+    cell = WATER_SHAPE_CELL
+    margin = cell  # 1 tile of blur margin on every side
+    img_w = w_tiles * cell + margin * 2
+    img_h = h_tiles * cell + margin * 2
+
+    mask = Image.new("L", (img_w, img_h), 0)
+    mdraw = ImageDraw.Draw(mask)
+    pad = cell * 0.14
+    for (x, y) in tile_set:
+        px = (x - min_x) * cell + margin
+        py = (y - min_y) * cell + margin
+        mdraw.rounded_rectangle([px - pad, py - pad, px + cell + pad, py + cell + pad],
+                                 radius=cell * 0.4, fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(radius=cell * 0.4))
+
+    rng = random.Random(hash((min_x, min_y, w_tiles, h_tiles)) & 0xffffffff)
+    deep = (46, 90, 150, 255)
+    mid = (78, 132, 196, 255)
+    shine = (176, 208, 238, 255)
+
+    base = Image.new("RGBA", (img_w, img_h), deep)
+    bdraw = ImageDraw.Draw(base)
+    for _ in range(max(6, (w_tiles * h_tiles) // 5)):
+        bx, by = rng.uniform(0, img_w), rng.uniform(0, img_h)
+        r = rng.uniform(cell * 0.7, cell * 1.8)
+        bdraw.ellipse([bx - r, by - r, bx + r, by + r], fill=mid)
+    base = base.filter(ImageFilter.GaussianBlur(radius=cell * 0.3))
+
+    rdraw = ImageDraw.Draw(base)
+    for _ in range(max(3, (w_tiles + h_tiles) // 2)):
+        ry = rng.uniform(0, img_h)
+        rx0 = rng.uniform(0, img_w * 0.4)
+        rw = rng.uniform(img_w * 0.2, img_w * 0.5)
+        rdraw.line([(rx0, ry), (rx0 + rw, ry)], fill=shine, width=max(1, int(cell * 0.05)))
+    base = base.filter(ImageFilter.GaussianBlur(radius=cell * 0.1))
+
+    base.putalpha(mask)
+    return base, min_x - 1, min_y - 1, w_tiles + 2, h_tiles + 2
 
 
 def stamp_water_body(cx, cy, target_size):
@@ -1052,8 +1369,9 @@ def stamp_water_body(cx, cy, target_size):
     interpolated) noise rather than raw per-tile jitter, so the coastline
     forms real coherent coves and headlands instead of a jittery/blocky
     circle — a hash-per-tile perturbation is uncorrelated noise, not a wiggle.
-    Skips already-claimed tiles."""
-    stamped = 0
+    Skips already-claimed tiles. The claimed tile set is then rendered as one
+    single smooth shape (see _build_water_shape) instead of per-tile stamps."""
+    stamped_tiles = []
     max_r = int(math.sqrt(target_size / math.pi) + 2)
     for dy in range(-max_r, max_r + 1):
         for dx in range(-max_r, max_r + 1):
@@ -1072,15 +1390,42 @@ def stamp_water_body(cx, cy, target_size):
             if noise_r > max_r:
                 continue
             farm[y][x]["state"] = "water"
-            farm[y][x]["ground_static"] = None  # water rendering owns the base layer
-            # a different noise cell than the wiggle above, so shape-variant
-            # patches don't line up with (and telegraph) the coastline noise
-            farm[y][x]["water_variant"] = region_variant(x, y, cell=2.3, bins=WATER_VARIANT_COUNT)
+            farm[y][x]["ground_static"] = None
             MAP_SURFACE.set_at((x, y), (68, 128, 200))  # blue on the world map overlay
-            stamped += 1
-    if stamped > 0:
+            stamped_tiles.append((x, y))
+    if stamped_tiles:
         water_bodies.append((cx, cy))
-    return stamped
+        stamped_set = set(stamped_tiles)
+
+        # A 1-tile shore buffer around every lake: reserved (via
+        # FARM_BLOCKED_TILES, so trees/rocks/buildings won't spawn there —
+        # this doesn't block player movement, that's governed separately by
+        # tile state) so nothing stands close enough to the water to
+        # visually bleed into the lake's soft, slightly-overdrawn shore image.
+        buffer_ring = set()
+        for (x, y) in stamped_tiles:
+            for ddx in (-1, 0, 1):
+                for ddy in (-1, 0, 1):
+                    nx, ny = x + ddx, y + ddy
+                    if (nx, ny) not in stamped_set:
+                        buffer_ring.add((nx, ny))
+        FARM_BLOCKED_TILES.update(buffer_ring)
+
+        # Ponds planted later (e.g. next to a village's fisherman shack) can
+        # land next to trees/rocks that were already placed earlier in
+        # world-gen, before this pond existed — the buffer reservation above
+        # only stops *future* spawns, so also clear out anything already
+        # sitting in the buffer ring right now.
+        for (bx, by) in buffer_ring:
+            if 0 <= bx < WORLD_W and 0 <= by < WORLD_H and farm[by][bx]["state"] in ("tree", "rock"):
+                farm[by][bx]["state"] = "grass"
+                farm[by][bx]["tree_variant"] = None
+
+        img, ox, oy, w_tiles, h_tiles = _build_water_shape(stamped_tiles)
+        water_shapes.append({"surface": _pil_to_pygame(img), "x": ox, "y": oy, "w": w_tiles, "h": h_tiles,
+                              "tiles": stamped_set})
+        spawn_fish_for(water_shapes[-1])
+    return len(stamped_tiles)
 
 
 def spawn_water_body(target_size):
@@ -1097,10 +1442,12 @@ def spawn_water_body(target_size):
             return
 
 
-# 8 big-ish lakes + 12 small ponds (villages will get their own small ponds later)
-for _ in range(8):
+# 20 big-ish lakes + 30 small ponds (villages will get their own small ponds
+# later) — counts scaled ~2.5x for the larger world so water stays just as
+# common per unit area, not diluted across the bigger map.
+for _ in range(20):
     spawn_water_body(random.randint(70, 140))
-for _ in range(12):
+for _ in range(30):
     spawn_water_body(random.randint(14, 30))
 
 
@@ -1113,9 +1460,242 @@ def spawn_tree():
             farm[y][x]["tree_variant"] = random.choice(BIOME_TREE_INDICES[farm[y][x]["biome"]])
             return
 
-#Populate the landscape with trees at world-gen
-for _ in range(600):
+#Populate the landscape with trees at world-gen (scaled ~2.5x for the larger world)
+for _ in range(1500):
     spawn_tree()
+
+
+def spawn_rock():
+    """Mineable boulders (stone + a chance of iron), scattered the same
+    bounded-retry way as trees. Slightly rarer than trees."""
+    for _ in range(30):
+        x, y = random.randint(0, WORLD_W - 1), random.randint(0, WORLD_H - 1)
+        if (farm[y][x]["state"] == "grass" and (x, y) not in FARM_BLOCKED_TILES
+                and (x, y) != (player_x, player_y)):
+            farm[y][x]["state"] = "rock"
+            return
+
+
+for _ in range(550):
+    spawn_rock()
+
+#Abandoned-farm flavor: a handful of tiles near the house are forcibly given
+#the existing rock/rubble decor image (bypassing the normal sparse chance),
+#selling the "ruined farm" starting state. They clear the first time the
+#farm tier advances past 0 (see recompute_farm_tier), a small visual payoff
+#for actually restoring the place rather than just a number going up.
+starting_rubble_tiles = set()
+for _ in range(6):
+    for _try in range(20):
+        rx = HOUSE_POS[0] + random.randint(-5, 5)
+        ry = HOUSE_POS[1] + random.randint(-5, 5)
+        if (0 <= rx < WORLD_W and 0 <= ry < WORLD_H and (rx, ry) not in FARM_BLOCKED_TILES
+                and farm[ry][rx]["state"] == "grass"):
+            farm[ry][rx]["decor"] = IMG_DECOR3  # the rock/rubble decor image
+            starting_rubble_tiles.add((rx, ry))
+            break
+
+
+def recompute_farm_tier():
+    """Farm tier is driven by how many player-constructed buildings are
+    actually finished and standing — 2 buildings per tier, capped at the
+    top tier. Announces tier-ups the same way achievements are announced,
+    and clears the starting rubble the first time the farm is restored
+    past "abandoned"."""
+    global farm_tier
+    active_count = sum(1 for b in farm_buildings if b["stage"] == "active")
+    new_tier = min(len(FARM_TIERS) - 1, active_count // 2)
+    if new_tier > farm_tier:
+        farm_tier = new_tier
+        achievement_queue.append({"text": f"Farm restored to: {FARM_TIERS[farm_tier]}", "timer": 0.0})
+        if farm_tier >= 1:
+            for (rx, ry) in starting_rubble_tiles:
+                farm[ry][rx]["decor"] = random.choice(DECOR_IMAGES) if random.random() < DECOR_CHANCE else None
+
+
+def _has_open_exposure(footprint):
+    """At least half of a footprint's cardinal-neighbor tiles must be open
+    grass — the Windmill's 'needs open space, wind exposure' requirement."""
+    open_count = 0
+    total = 0
+    for (px, py) in footprint:
+        for (dx, dy) in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = px + dx, py + dy
+            if (nx, ny) in footprint:
+                continue
+            total += 1
+            if 0 <= nx < WORLD_W and 0 <= ny < WORLD_H and farm[ny][nx]["state"] == "grass":
+                open_count += 1
+    return total > 0 and (open_count / total) >= 0.5
+
+
+def _nearby_flowers(cx, cy, radius=3):
+    """Bee Hive placement bonus check: any flower decor (not rock/bush)
+    within radius means nearby flowers to forage, per the design's 'nearby
+    flowers increase honey production' rule."""
+    flower_images = {IMG_DECOR1, IMG_DECOR2}
+    for dy in range(-radius, radius + 1):
+        for dx in range(-radius, radius + 1):
+            x, y = cx + dx, cy + dy
+            if 0 <= x < WORLD_W and 0 <= y < WORLD_H and farm[y][x]["decor"] in flower_images:
+                return True
+    return False
+
+
+def has_recipe_inputs(input_dict):
+    for key, amt in input_dict.items():
+        available = resources.get(key) if key in resources else seed_inventory.get(key, 0)
+        if available is None or available < amt:
+            return False
+    return True
+
+
+def consume_recipe_inputs(input_dict):
+    for key, amt in input_dict.items():
+        if key in resources:
+            resources[key] -= amt
+        else:
+            seed_inventory[key] -= amt
+
+
+def any_active_building(btype):
+    return any(b["type"] == btype and b["stage"] == "active" for b in farm_buildings)
+
+
+def attempt_place_building(btype):
+    """Validates placement (clear ground, in bounds, Windmill's open-space
+    rule), checks + deducts cost, and starts construction. Returns True on
+    success so the caller can close the build menu / suppress the same
+    keypress from also being read as 'open the building I'm now standing
+    in front of' (mirrors the just_entered_ruin double-action guard)."""
+    global emeralds, build_message, build_message_timer
+    info = FARM_BUILDING_TYPES[btype]
+    fw, fh = info["footprint"]
+    fdx, fdy = FACING_DELTA[player_facing]
+    fx, fy = player_x + fdx, player_y + fdy
+    footprint = {(fx + i, fy) for i in range(fw)}
+
+    # Only 2-tall buildings (fh > 1) actually overhang into the row above —
+    # farm_well/beehive/orchard_marker sit flush, so don't need that extra
+    # margin checked or reserved.
+    check_region = _full_footprint(footprint) if fh > 1 else footprint
+
+    if any(not (0 <= px < WORLD_W and 0 <= py < WORLD_H) for (px, py) in footprint):
+        build_message, build_message_timer = "Can't place a building there!", 2.0
+        return False
+    if check_region & FARM_BLOCKED_TILES:
+        build_message, build_message_timer = "That spot is already in use!", 2.0
+        return False
+    if any(farm[py][px]["state"] != "grass" for (px, py) in footprint):
+        build_message, build_message_timer = "Needs clear, open ground!", 2.0
+        return False
+    if btype == "windmill" and not _has_open_exposure(footprint):
+        build_message, build_message_timer = "The windmill needs more open space around it!", 2.4
+        return False
+
+    discount = farming_skill_build_discount()
+    scaled_cost = {res: max(1, int(amt * discount)) for res, amt in info["cost"].items()}
+    for res, amt in scaled_cost.items():
+        available = emeralds if res == "emeralds" else resources.get(res, 0)
+        if available < amt:
+            build_message, build_message_timer = "Not enough resources!", 2.0
+            return False
+
+    for res, amt in scaled_cost.items():
+        if res == "emeralds":
+            emeralds -= amt
+        else:
+            resources[res] -= amt
+
+    building_id = len(farm_buildings)
+    for (px, py) in footprint:
+        farm[py][px]["state"] = "building"
+        farm[py][px]["building_id"] = building_id
+    FARM_BLOCKED_TILES.update(check_region)
+    farm_buildings.append({
+        "type": btype, "x": fx, "y": fy, "footprint": footprint, "stage": "building",
+        "progress_days": 0.0, "condition": 100.0, "processing": None, "stock": 0,
+        "flower_bonus": _nearby_flowers(fx, fy) if btype == "beehive" else False,
+        "_honey_timer": 0.0,
+    })
+    if btype == "orchard_marker":
+        orchard_tiles.update(footprint)
+    build_message, build_message_timer = f"Construction started: {info['label']}", 2.2
+    return True
+
+
+def get_building_panel_options(b):
+    """Returns the building panel's option list for building b, each a dict
+    with at least a 'kind' and 'label'. Shared by both the render code and
+    the E-key confirm handler so they can never drift out of sync."""
+    info = FARM_BUILDING_TYPES[b["type"]]
+    options = []
+    if b["stage"] == "building":
+        pct = int(min(100, 100 * b["progress_days"] / info["build_days"]))
+        options.append({"kind": "info", "label": f"Under construction — {pct}%"})
+        options.append({"kind": "leave", "label": "Leave"})
+        return options
+
+    if b["processing"] is not None:
+        if b["processing"]["time_left"] <= 0:
+            options.append({"kind": "collect", "label": f"Collect {b['processing']['qty']} {GOODS_INFO[b['processing']['output']]['name']}"})
+        else:
+            secs = max(0, int(b["processing"]["time_left"]))
+            options.append({"kind": "info", "label": f"Processing '{b['processing']['recipe_name']}' — {secs}s left"})
+    elif b["type"] in PRODUCTION_RECIPES:
+        for recipe in PRODUCTION_RECIPES[b["type"]]:
+            need_str = ", ".join(f"{amt} {k.capitalize()}" for k, amt in recipe["input"].items())
+            afford = has_recipe_inputs(recipe["input"])
+            options.append({"kind": "recipe", "label": f"{recipe['name']} (needs {need_str})",
+                             "recipe": recipe, "affordable": afford})
+    elif b["type"] == "beehive":
+        if b["stock"] > 0:
+            options.append({"kind": "collect_stock", "label": f"Collect {b['stock']} Honey"})
+        else:
+            options.append({"kind": "info", "label": "Bees foraging" + (" (flowers nearby!)" if b["flower_bonus"] else "...")})
+    else:
+        descriptions = {
+            "barn": "Boosts stored livestock happiness & yield.",
+            "silo": "Expands feed storage capacity.",
+            "warehouse": "Expands crop/material storage capacity.",
+            "farm_well": "Speeds crop growth in a small radius.",
+            "windmill": "Speeds up every Mill's production.",
+            "greenhouse": "Crops planted here ignore winter slowdown.",
+            "orchard_marker": "Apple/Grape here auto-replant after harvest.",
+            "watchtower": "Warns of and reduces farm raids.",
+            "magic_ward": "Wards the whole farm against raids.",
+        }
+        options.append({"kind": "info", "label": descriptions.get(b["type"], "A working part of the farm.")})
+
+    if b["condition"] < 100:
+        cost = FARM_BUILDING_TYPES[b["type"]]["cost"]
+        repair_cost = {k: max(1, int(v * REPAIR_COST_FRACTION)) for k, v in cost.items()}
+        cost_str = ", ".join(f"{v} {k.capitalize()}" for k, v in repair_cost.items())
+        options.append({"kind": "repair", "label": f"Repair ({cost_str}) — condition {int(b['condition'])}%",
+                         "repair_cost": repair_cost})
+
+    options.append({"kind": "leave", "label": "Leave"})
+    return options
+
+
+def growth_rate_at(x, y):
+    """Combines every growth-speed modifier that applies to a given tile:
+    the farming skill tree's passive bonus, winter's slowdown (bypassed by
+    a nearby active Greenhouse or the level-20 skill), and a nearby active
+    Well's boost — infrastructure and skill progression actually changing
+    how the farm behaves, not just cosmetic placement."""
+    mult = farming_skill_growth_mult()
+    if season_for_day(day) == "Winter" and not farming_skill_bypasses_winter():
+        in_greenhouse = any(b["type"] == "greenhouse" and b["stage"] == "active" and (x, y) in b["footprint"]
+                            for b in farm_buildings)
+        if not in_greenhouse:
+            mult *= WINTER_GROWTH_MULT
+    for b in farm_buildings:
+        if b["type"] == "farm_well" and b["stage"] == "active" and math.hypot(x - b["x"], y - b["y"]) <= 4:
+            mult *= 1.3
+            break
+    return mult
+
 
 #Peaceful animals: wander idly, flee a little if the player gets close
 animals = []
@@ -1135,7 +1715,7 @@ def spawn_animal():
             return
 
 
-for _ in range(50):
+for _ in range(125):
     spawn_animal()
 
 #Marketplace: small outposts scattered around, larger marketplaces further
@@ -1168,6 +1748,13 @@ def generate_trades(kind):
             trades.append({"type": "buy_tool", "tool_name": "hoe", "price": 25})
         if not axe_tool:
             trades.append({"type": "buy_tool", "tool_name": "axe", "price": 30})
+        # Marketplaces also buy processed goods — the payoff for building a
+        # Mill/Preserving Shed/Brewery/Workshop and actually running it.
+        for good_key in random.sample(list(GOODS_INFO.keys()), k=2):
+            value = GOODS_INFO[good_key]["value"]
+            qty = random.randint(2, 4)
+            price = max(1, round(qty * value * random.uniform(1.1, 1.5)))
+            trades.append({"type": "sell_good", "item": good_key, "qty": qty, "price": price})
 
     return trades
 
@@ -1181,7 +1768,7 @@ def spawn_outpost(kind):
         if math.hypot(x - HOUSE_POS[0], y - HOUSE_POS[1]) < min_dist:
             continue
         footprint = {(x + dx, y) for dx in range(footprint_w)}
-        if footprint & FARM_BLOCKED_TILES:
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
             continue
         if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
             continue
@@ -1190,7 +1777,7 @@ def spawn_outpost(kind):
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "market"
             farm[fy][fx]["market_id"] = market_id
-        FARM_BLOCKED_TILES.update(footprint)
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
         variant_pool = MARKETPLACE_IMAGES if kind == "marketplace" else OUTPOST_IMAGES
         outposts.append({"x": x, "y": y, "kind": kind, "trades": generate_trades(kind),
                           "variant": random.randrange(len(variant_pool))})
@@ -1206,32 +1793,64 @@ stables = []
 villagers = []
 
 
-def spawn_stable_near(cx, cy):
+def _outside_bounds(footprint, bounds):
+    """bounds, if given, is (x0, y0, x1, y1) that every tile in footprint
+    must fall within — used to keep a kingdom's interior services
+    (stable/smithy/shack/well/shrine/extra stalls) from landing outside its
+    own walls, since these 'near a point' helpers otherwise have no idea a
+    wall exists."""
+    if bounds is None:
+        return False
+    x0, y0, x1, y1 = bounds
+    return any(not (x0 <= fx <= x1 and y0 <= fy <= y1) for (fx, fy) in footprint)
+
+
+def _full_footprint(footprint):
+    """Every 2-tile-tall, bottom-anchored building (stable, shrine, smithy,
+    shack, market/outpost, ruin, flavor house, player building, kingdom
+    gate) renders one tile taller than its actual collision footprint — the
+    roof/overhang spills into the row above. Collision checks must test
+    THIS combined region, not just the footprint: checking only the
+    footprint (and reserving the overhang purely as an afterthought) still
+    lets a structure's own overhang land on top of an earlier structure's
+    already-placed footprint, since that placement never re-checks its
+    neighbor's footprint against its own overhang. Using the full region
+    for both the check and the reservation closes that gap. The overhang
+    tiles never have their state changed — they stay walkable grass
+    underneath the sprite's overhang, just reserved from further building."""
+    return footprint | {(x, y - 1) for (x, y) in footprint}
+
+
+def spawn_stable_near(cx, cy, bounds=None):
     for _ in range(60):
         ox = cx + random.randint(-5, 5)
         oy = cy + random.randint(-5, 5)
         footprint = {(ox, oy), (ox + 1, oy)}
         if any(not (0 <= fx < WORLD_W and 0 <= fy < WORLD_H) for (fx, fy) in footprint):
             continue
-        if footprint & FARM_BLOCKED_TILES:
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
             continue
         if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+            continue
+        if _outside_bounds(footprint, bounds):
             continue
 
         stable_id = len(stables)
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "stable"
             farm[fy][fx]["stable_id"] = stable_id
-        FARM_BLOCKED_TILES.update(footprint)
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
         stables.append({"x": ox, "y": oy})
         return
 
 
-def spawn_villager_near(cx, cy):
+def spawn_villager_near(cx, cy, bounds=None):
     name = random.choice(VILLAGER_NAMES)
     for _ in range(40):
         vx, vy = cx + random.uniform(-5, 5), cy + random.uniform(-5, 5)
         ix, iy = int(vx), int(vy)
+        if _outside_bounds({(ix, iy)}, bounds):
+            continue
         if 0 <= ix < WORLD_W and 0 <= iy < WORLD_H and farm[iy][ix]["state"] == "grass":
             villagers.append({
                 "name": name, "frames": VILLAGER_FRAMES_BY_NAME[name],
@@ -1248,13 +1867,15 @@ wells = []
 shrines = []
 
 
-def spawn_well_near(cx, cy):
+def spawn_well_near(cx, cy, bounds=None):
     for _ in range(40):
         wx = cx + random.randint(-5, 5)
         wy = cy + random.randint(-5, 5)
         if not (0 <= wx < WORLD_W and 0 <= wy < WORLD_H):
             continue
         if (wx, wy) in FARM_BLOCKED_TILES or farm[wy][wx]["state"] != "grass":
+            continue
+        if _outside_bounds({(wx, wy)}, bounds):
             continue
 
         farm[wy][wx]["state"] = "well"
@@ -1263,21 +1884,23 @@ def spawn_well_near(cx, cy):
         return
 
 
-def spawn_shrine_near(cx, cy):
+def spawn_shrine_near(cx, cy, bounds=None):
     for _ in range(40):
         sx = cx + random.randint(-6, 6)
         sy = cy + random.randint(-6, 6)
         footprint = {(sx, sy), (sx + 1, sy)}
         if any(not (0 <= fx < WORLD_W and 0 <= fy < WORLD_H) for (fx, fy) in footprint):
             continue
-        if footprint & FARM_BLOCKED_TILES:
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
             continue
         if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+            continue
+        if _outside_bounds(footprint, bounds):
             continue
 
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "shrine"
-        FARM_BLOCKED_TILES.update(footprint)
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
         shrines.append({"x": sx, "y": sy})
         return
 
@@ -1313,36 +1936,42 @@ def make_shack_trades():
     return trades
 
 
-def spawn_smithy_near(cx, cy):
+def spawn_smithy_near(cx, cy, bounds=None):
     for _ in range(60):
         ox = cx + random.randint(-7, 7)
         oy = cy + random.randint(-7, 7)
         footprint = {(ox, oy), (ox + 1, oy)}
         if any(not (0 <= fx < WORLD_W and 0 <= fy < WORLD_H) for (fx, fy) in footprint):
             continue
-        if footprint & FARM_BLOCKED_TILES:
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
             continue
         if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+            continue
+        if _outside_bounds(footprint, bounds):
             continue
         smithy_id = len(smithies)
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "smithy"
             farm[fy][fx]["smithy_id"] = smithy_id
-        FARM_BLOCKED_TILES.update(footprint)
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
         smithies.append({"x": ox, "y": oy, "trades": make_smithy_trades()})
         return
 
 
-def spawn_fisherman_shack_near(cx, cy):
+def spawn_fisherman_shack_near(cx, cy, bounds=None):
     """Places a fisherman shack next to the closest water tile within reach.
     If no water is nearby, plants a small pond first, then puts the shack
-    next to it — so villages always get their waterfront even in dry regions."""
+    next to it — so villages always get their waterfront even in dry regions.
+    bounds, if given (e.g. a kingdom's interior), keeps both the pond and the
+    shack itself from landing outside it."""
     # find nearest water tile within a search box
     best = None
     for dy in range(-10, 11):
         for dx in range(-10, 11):
             wx, wy = cx + dx, cy + dy
             if not (0 <= wx < WORLD_W and 0 <= wy < WORLD_H):
+                continue
+            if _outside_bounds({(wx, wy)}, bounds):
                 continue
             if farm[wy][wx]["state"] == "water":
                 d = abs(dx) + abs(dy)
@@ -1354,6 +1983,8 @@ def spawn_fisherman_shack_near(cx, cy):
             pond_x = cx + random.randint(-6, 6)
             pond_y = cy + random.randint(-6, 6)
             if biome_for(pond_x, pond_y) == "desert":
+                continue
+            if _outside_bounds({(pond_x, pond_y)}, bounds):
                 continue
             if stamp_water_body(pond_x, pond_y, random.randint(10, 20)) > 4:
                 best = (0, pond_x, pond_y)
@@ -1369,23 +2000,49 @@ def spawn_fisherman_shack_near(cx, cy):
                 footprint = {(ox, oy), (ox + 1, oy)}
                 if any(not (0 <= fx < WORLD_W and 0 <= fy < WORLD_H) for (fx, fy) in footprint):
                     continue
-                if footprint & FARM_BLOCKED_TILES:
+                if _full_footprint(footprint) & FARM_BLOCKED_TILES:
                     continue
                 if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+                    continue
+                if _outside_bounds(footprint, bounds):
                     continue
                 shack_id = len(shacks)
                 for (fx, fy) in footprint:
                     farm[fy][fx]["state"] = "shack"
                     farm[fy][fx]["shack_id"] = shack_id
-                FARM_BLOCKED_TILES.update(footprint)
+                FARM_BLOCKED_TILES.update(_full_footprint(footprint))
                 shacks.append({"x": ox, "y": oy, "trades": make_shack_trades()})
                 return
+
+
+flavor_buildings = []  # {"x","y","flavor": "sakura"|"desert"|"snow"} village centerpieces
+
+
+def spawn_flavor_house_near(cx, cy, flavor):
+    for _ in range(60):
+        ox = cx + random.randint(-6, 6)
+        oy = cy + random.randint(-6, 6)
+        footprint = {(ox, oy), (ox + 1, oy)}
+        if any(not (0 <= fx < WORLD_W and 0 <= fy < WORLD_H) for (fx, fy) in footprint):
+            continue
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
+            continue
+        if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+            continue
+        for (fx, fy) in footprint:
+            farm[fy][fx]["state"] = "flavor_house"
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        flavor_buildings.append({"x": ox, "y": oy, "flavor": flavor})
+        return
 
 
 def spawn_village(cx, cy):
     """Full-scale village: stable, blacksmith, fisherman shack, well, sometimes
     a shrine, and a big crowd of villagers wandering the streets — meant to
-    feel like a real settlement, not a lone stall in an empty field."""
+    feel like a real settlement, not a lone stall in an empty field. Villages
+    in the sakura/desert/tundra biomes also get a themed centerpiece house
+    (pagoda, adobe, or snow cabin) so those regions read as their own
+    distinct culture rather than the same generic buildings everywhere."""
     spawn_stable_near(cx, cy)
     spawn_smithy_near(cx, cy)
     spawn_fisherman_shack_near(cx, cy)
@@ -1395,12 +2052,213 @@ def spawn_village(cx, cy):
         spawn_well_near(cx, cy)
     if random.random() < 0.5:
         spawn_shrine_near(cx, cy)
+    flavor = BIOME_TO_FLAVOR.get(biome_for(cx, cy))
+    if flavor:
+        spawn_flavor_house_near(cx, cy, flavor)
 
 
-for _ in range(18):
+def spawn_outpost_near(cx, cy, kind, bounds=None):
+    """Same footprint/collision rules as spawn_outpost, but clustered near a
+    given point instead of dropped anywhere — used to bulk up towns and
+    kingdoms with extra stalls beyond their central marketplace."""
+    footprint_w = 2 if kind == "marketplace" else 1
+    for _ in range(80):
+        ox = cx + random.randint(-9, 9)
+        oy = cy + random.randint(-9, 9)
+        footprint = {(ox + dx, oy) for dx in range(footprint_w)}
+        if any(not (0 <= fx < WORLD_W and 0 <= fy < WORLD_H) for (fx, fy) in footprint):
+            continue
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
+            continue
+        if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+            continue
+        if _outside_bounds(footprint, bounds):
+            continue
+        market_id = len(outposts)
+        for (fx, fy) in footprint:
+            farm[fy][fx]["state"] = "market"
+            farm[fy][fx]["market_id"] = market_id
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        variant_pool = MARKETPLACE_IMAGES if kind == "marketplace" else OUTPOST_IMAGES
+        outposts.append({"x": ox, "y": oy, "kind": kind, "trades": generate_trades(kind),
+                          "variant": random.randrange(len(variant_pool))})
+        return
+
+
+def spawn_village_in_biome(target_biome):
+    """Guarantees at least an attempt at a village specifically within a
+    given biome (sakura/desert/tundra), rather than leaving those small-town
+    themes to random chance across the whole map — mirrors how ruins are
+    guaranteed to land in the desert."""
+    for _ in range(400):
+        x = random.randint(4, WORLD_W - 6)
+        y = random.randint(4, WORLD_H - 4)
+        if biome_for(x, y) != target_biome:
+            continue
+        if math.hypot(x - HOUSE_POS[0], y - HOUSE_POS[1]) < 30:
+            continue
+        footprint = {(x, y), (x + 1, y)}
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
+            continue
+        if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+            continue
+        market_id = len(outposts)
+        for (fx, fy) in footprint:
+            farm[fy][fx]["state"] = "market"
+            farm[fy][fx]["market_id"] = market_id
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        outposts.append({"x": x, "y": y, "kind": "marketplace", "trades": generate_trades("marketplace"),
+                          "variant": random.randrange(len(MARKETPLACE_IMAGES))})
+        spawn_village(x, y)
+        return
+
+
+def spawn_town(target_biome=None):
+    """A town is a village turned up a notch: a second wave of stalls, more
+    services, and a much bigger crowd — the mid-tier settlement between a
+    single trading post and a walled kingdom. No wall; just bigger."""
+    for _ in range(400):
+        x = random.randint(6, WORLD_W - 8)
+        y = random.randint(6, WORLD_H - 6)
+        if target_biome and biome_for(x, y) != target_biome:
+            continue
+        if math.hypot(x - HOUSE_POS[0], y - HOUSE_POS[1]) < 35:
+            continue
+        footprint = {(x, y), (x + 1, y)}
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
+            continue
+        if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+            continue
+
+        market_id = len(outposts)
+        for (fx, fy) in footprint:
+            farm[fy][fx]["state"] = "market"
+            farm[fy][fx]["market_id"] = market_id
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        outposts.append({"x": x, "y": y, "kind": "marketplace", "trades": generate_trades("marketplace"),
+                          "variant": random.randrange(len(MARKETPLACE_IMAGES))})
+
+        spawn_stable_near(x, y)
+        spawn_smithy_near(x, y)
+        spawn_fisherman_shack_near(x, y)
+        spawn_well_near(x, y)
+        if random.random() < 0.7:
+            spawn_shrine_near(x, y)
+        for _ in range(3):
+            spawn_outpost_near(x, y, "outpost")
+        for _ in range(random.randint(18, 26)):
+            spawn_villager_near(x, y)
+        flavor = BIOME_TO_FLAVOR.get(biome_for(x, y))
+        if flavor:
+            spawn_flavor_house_near(x, y, flavor)
+            spawn_flavor_house_near(x, y, flavor)
+        return
+
+
+#Walled kingdoms: the biggest settlement tier — a walled rectangular compound
+#with a single gate that costs a one-time toll to pass. Once paid, that
+#kingdom's gate stays open for the rest of the game (a "visa", not a repeat
+#toll). Trees/rocks caught inside the footprint are cleared as part of
+#construction (the land is settled), but existing structures/water are not
+#bulldozed — placement just retries elsewhere instead.
+kingdoms = []
+
+
+def spawn_kingdom(target_biome=None):
+    kw, kh = random.randint(16, 20), random.randint(12, 14)
+    for _ in range(300):
+        x0 = random.randint(6, WORLD_W - kw - 6)
+        y0 = random.randint(6, WORLD_H - kh - 6)
+        cx, cy = x0 + kw // 2, y0 + kh // 2
+        if target_biome and biome_for(cx, cy) != target_biome:
+            continue
+        if math.hypot(cx - HOUSE_POS[0], cy - HOUSE_POS[1]) < 40:
+            continue
+
+        region = [(x, y) for y in range(y0, y0 + kh) for x in range(x0, x0 + kw)]
+        if any(not (0 <= x < WORLD_W and 0 <= y < WORLD_H) for (x, y) in region):
+            continue
+        region_set = set(region)
+        if region_set & FARM_BLOCKED_TILES:
+            continue
+        if any(farm[y][x]["state"] == "water" for (x, y) in region):
+            continue
+
+        for (x, y) in region:
+            if farm[y][x]["state"] in ("tree", "rock"):
+                farm[y][x]["state"] = "grass"
+                farm[y][x]["tree_variant"] = None
+
+        kingdom_id = len(kingdoms)
+        gate_x = x0 + kw // 2
+        wall_tiles = set()
+        gate_tiles = set()
+        for x in range(x0, x0 + kw):
+            for y in (y0, y0 + kh - 1):
+                if y == y0 + kh - 1 and gate_x <= x <= gate_x + 1:
+                    gate_tiles.add((x, y))
+                else:
+                    wall_tiles.add((x, y))
+        for y in range(y0, y0 + kh):
+            for x in (x0, x0 + kw - 1):
+                wall_tiles.add((x, y))
+
+        for (wx, wy) in wall_tiles:
+            farm[wy][wx]["state"] = "wall"
+        for (gx, gy) in gate_tiles:
+            farm[gy][gx]["state"] = "gate"
+            farm[gy][gx]["kingdom_id"] = kingdom_id
+        FARM_BLOCKED_TILES.update(wall_tiles)
+        FARM_BLOCKED_TILES.update(_full_footprint(gate_tiles))  # the gate sprite is 2 tiles tall too
+
+        toll = random.randint(40, 90)
+        name = KINGDOM_NAMES[kingdom_id % len(KINGDOM_NAMES)]
+        kingdoms.append({"x": cx, "y": cy, "x0": x0, "y0": y0, "w": kw, "h": kh,
+                          "gate_x": gate_x, "gate_y": y0 + kh - 1,
+                          "toll": toll, "paid": False, "name": name})
+
+        cfoot = {(cx, cy), (cx + 1, cy)}
+        market_id = len(outposts)
+        for (fx, fy) in cfoot:
+            farm[fy][fx]["state"] = "market"
+            farm[fy][fx]["market_id"] = market_id
+        FARM_BLOCKED_TILES.update(_full_footprint(cfoot))
+        outposts.append({"x": cx, "y": cy, "kind": "marketplace", "trades": generate_trades("marketplace"),
+                          "variant": random.randrange(len(MARKETPLACE_IMAGES))})
+
+        # 1-tile clearance inside the walls so nothing gets placed flush
+        # against them, and — critically — so the fisherman shack, extra
+        # stalls, etc. can never land outside the walls the way an
+        # unconstrained "near a point" search otherwise could.
+        interior_bounds = (x0 + 1, y0 + 1, x0 + kw - 2, y0 + kh - 2)
+        spawn_stable_near(cx, cy, bounds=interior_bounds)
+        spawn_smithy_near(cx, cy, bounds=interior_bounds)
+        spawn_fisherman_shack_near(cx, cy, bounds=interior_bounds)
+        spawn_well_near(cx, cy, bounds=interior_bounds)
+        spawn_shrine_near(cx, cy, bounds=interior_bounds)
+        for _ in range(4):
+            spawn_outpost_near(cx, cy, random.choice(["outpost", "outpost", "marketplace"]), bounds=interior_bounds)
+        for _ in range(random.randint(24, 34)):
+            spawn_villager_near(cx, cy, bounds=interior_bounds)
+        return
+
+
+#Settlement counts scaled ~2.5x for the larger world, except kingdoms —
+#those are meant to stay rare/special, so just a modest bump.
+for _ in range(60):
     spawn_outpost("outpost")
-for _ in range(5):
+for _ in range(17):
     spawn_outpost("marketplace")
+for _ in range(3):
+    spawn_village_in_biome("sakura")
+for _ in range(3):
+    spawn_village_in_biome("desert")
+for _ in range(3):
+    spawn_village_in_biome("tundra")
+for _ in range(7):
+    spawn_town()
+for _ in range(3):
+    spawn_kingdom()
 
 #Underworld: a shared underground map reached through ancient desert ruins.
 #Zones are assigned with the same coarse value-noise technique as surface
@@ -1452,7 +2310,7 @@ def spawn_ruin():
         if biome_for(x, y) != "desert":
             continue
         footprint = {(x, y), (x + 1, y)}
-        if footprint & FARM_BLOCKED_TILES:
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
             continue
         if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
             continue
@@ -1463,7 +2321,7 @@ def spawn_ruin():
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "ruin"
             farm[fy][fx]["ruin_id"] = ruin_id
-        FARM_BLOCKED_TILES.update(footprint)
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
 
         ux, uy = pick_underworld_arrival()
         underworld[uy][ux]["state"] = "portal"
@@ -1473,7 +2331,7 @@ def spawn_ruin():
         return
 
 
-for _ in range(7):
+for _ in range(12):
     spawn_ruin()
 
 
@@ -1565,8 +2423,11 @@ def try_move(dx, dy):
     if location == "farm":
         nx = max(0, min(WORLD_W - 1, player_x + dx))
         ny = max(0, min(WORLD_H - 1, player_y + dy))
-        if (nx, ny) in HOUSE_TILES or farm[ny][nx]["state"] in ("tree", "market", "stable", "ruin", "well", "shrine", "water", "smithy", "shack"):
-            return False  # solid house wall, tree, market stall, stable, or ruin
+        tile_state = farm[ny][nx]["state"]
+        if (nx, ny) in HOUSE_TILES or tile_state in ("tree", "market", "stable", "ruin", "well", "shrine", "water", "smithy", "shack", "rock", "building", "wall", "flavor_house"):
+            return False  # solid house wall, tree, market stall, stable, ruin, kingdom wall, etc.
+        if tile_state == "gate" and not kingdoms[farm[ny][nx]["kingdom_id"]]["paid"]:
+            return False  # kingdom gate — blocked until its toll is paid
 
         moved = (nx, ny) != (player_x, player_y)
         player_x, player_y = nx, ny
@@ -1674,6 +2535,29 @@ while running:
                 animal["state"] = "idle"
                 animal["timer"] = random.uniform(1.5, 4.0)
 
+    #Fish: peaceful, purely ambient — wander only within their own lake's
+    #exact tile set (never the surrounding land), no reaction to the player.
+    if location == "farm":
+        for f in fish:
+            if f["state"] == "idle":
+                f["timer"] -= dt
+                if f["timer"] <= 0:
+                    f["target_x"], f["target_y"] = random.choice(f["water_tiles"])
+                    f["state"] = "moving"
+            if f["state"] == "moving":
+                tdx = f["target_x"] - f["x"]
+                tdy = f["target_y"] - f["y"]
+                tdist = math.hypot(tdx, tdy)
+                if tdist > 0.08:
+                    step = min(tdist, FISH_SPEED * dt)
+                    f["x"] += tdx / tdist * step
+                    f["y"] += tdy / tdist * step
+                    if abs(tdx) > 0.01:
+                        f["facing_right"] = tdx > 0
+                else:
+                    f["state"] = "idle"
+                    f["timer"] = random.uniform(1.0, 3.0)
+
     #Demons: idle/wander like the peaceful animals, but drift toward the
     #player when close instead of fleeing — a sense of danger even though
     #this first pass keeps combat itself to a simple strike-to-kill.
@@ -1725,14 +2609,107 @@ while running:
                 if player_hp <= 0:
                     player_hp = PLAYER_MAX_HP // 2
                     location = "farm"
-                    player_x, player_y = surface_return_x, surface_return_y
+                    # Dying always sends you home, not just back to whichever
+                    # ruin you happened to enter through — one consistent
+                    # respawn point rather than scattered "return here" spots.
+                    player_x, player_y = HOUSE_POS[0], DOOR_ROW + 1
                     player_visual_x, player_visual_y = float(player_x), float(player_y)
                     current_ruin_id = None
                     mounted = False
                     achievement_queue.append({
-                        "text": "Overwhelmed! You flee back to the surface...",
+                        "text": "Overwhelmed! You wake up back at the farmhouse...",
                         "timer": 0.0,
                     })
+
+    #Farm raids: once the player has been to the underworld at least once,
+    #demons occasionally wander up through a ruin and raid the surface farm.
+    #A Watchtower gives an early warning and halves the odds; a Magic Ward
+    #stops raids outright. Same wander/hunt AI and contact damage as
+    #underworld demons, just running on the WORLD_W/H surface map instead.
+    if location == "farm" and has_visited_underworld:
+        if raid_warning_timer > 0:
+            raid_warning_timer -= dt
+            if raid_warning_timer <= 0:
+                spawn_count = random.randint(2, 4)
+                for _ in range(spawn_count):
+                    for _try in range(40):
+                        rx = HOUSE_POS[0] + random.randint(-25, 25)
+                        ry = HOUSE_POS[1] + random.randint(-25, 25)
+                        if (0 <= rx < WORLD_W and 0 <= ry < WORLD_H and (rx, ry) not in FARM_BLOCKED_TILES
+                                and farm[ry][rx]["state"] == "grass"
+                                and math.hypot(rx - HOUSE_POS[0], ry - HOUSE_POS[1]) > 10):
+                            farm_demons.append({
+                                "x": float(rx), "y": float(ry), "target_x": float(rx), "target_y": float(ry),
+                                "state": "idle", "timer": random.uniform(0.0, 2.0), "facing_right": True,
+                                "hp": DEMON_MAX_HP, "attack_cooldown": 0.0,
+                            })
+                            break
+                achievement_queue.append({"text": "Monsters are attacking the farm!", "timer": 0.0})
+        else:
+            raid_timer += dt
+            if raid_timer >= RAID_CHECK_INTERVAL:
+                raid_timer = 0.0
+                if not any_active_building("magic_ward") and not farm_demons:
+                    chance = RAID_CHANCE
+                    has_tower = any_active_building("watchtower")
+                    if has_tower:
+                        chance *= 0.5
+                    if random.random() < chance:
+                        if has_tower:
+                            raid_warning_timer = 4.0
+                            achievement_queue.append({"text": "The watchtower spots movement near the farm...",
+                                                       "timer": 0.0})
+                        else:
+                            raid_warning_timer = 0.01  # spawn on the very next tick, no warning available
+
+        for demon in farm_demons:
+            ddx, ddy = player_x - demon["x"], player_y - demon["y"]
+            dist_to_player = math.hypot(ddx, ddy)
+            if 0.01 < dist_to_player < 4.0 and demon["state"] != "hunting":
+                demon["state"] = "hunting"
+
+            if demon["state"] == "hunting":
+                if dist_to_player > 5.5:
+                    demon["state"] = "idle"
+                    demon["timer"] = random.uniform(0.5, 1.5)
+                else:
+                    demon["target_x"] = player_x
+                    demon["target_y"] = player_y
+
+            if demon["state"] == "idle":
+                demon["timer"] -= dt
+                if demon["timer"] <= 0:
+                    demon["target_x"] = max(0, min(WORLD_W - 1, demon["x"] + random.uniform(-2.5, 2.5)))
+                    demon["target_y"] = max(0, min(WORLD_H - 1, demon["y"] + random.uniform(-2.5, 2.5)))
+                    demon["state"] = "moving"
+
+            if demon["state"] in ("moving", "hunting"):
+                tdx = demon["target_x"] - demon["x"]
+                tdy = demon["target_y"] - demon["y"]
+                tdist = math.hypot(tdx, tdy)
+                speed = DEMON_SPEED * (1.6 if demon["state"] == "hunting" else 1.0)
+                if tdist > 0.08:
+                    step = min(tdist, speed * dt)
+                    demon["x"] += tdx / tdist * step
+                    demon["y"] += tdy / tdist * step
+                    if abs(tdx) > 0.01:
+                        demon["facing_right"] = tdx > 0
+                elif demon["state"] == "moving":
+                    demon["state"] = "idle"
+                    demon["timer"] = random.uniform(1.5, 4.0)
+
+            if demon["attack_cooldown"] > 0:
+                demon["attack_cooldown"] -= dt
+            if demon["attack_cooldown"] <= 0 and dist_to_player < DEMON_ATTACK_RANGE:
+                demon["attack_cooldown"] = DEMON_ATTACK_COOLDOWN
+                player_hp -= DEMON_ATTACK_DAMAGE
+                player_hurt_flash = PLAYER_HURT_FLASH_DURATION
+                if player_hp <= 0:
+                    player_hp = PLAYER_MAX_HP // 2
+                    player_x, player_y = HOUSE_POS[0], DOOR_ROW + 1
+                    player_visual_x, player_visual_y = float(player_x), float(player_y)
+                    mounted = False
+                    achievement_queue.append({"text": "Beaten back! You retreat to the farmhouse...", "timer": 0.0})
 
     #Villagers: wander locally around their village center
     VILLAGER_SPEED = 1.1
@@ -1832,19 +2809,16 @@ while running:
         spawn_tree()
         tree_timer = 0.0
 
-    #Level-Up Screen 
+    #Level-Up Screen — every line is wrapped/centered to the screen width so
+    #a long achievement name or reward description can never run off-screen
     if level_up_pending:
         screen.fill((50, 50, 50))
-        title = render_text(font, level_up_message, TEXT_GOLD)
-        screen.blit(title, (WIDTH//2 - title.get_width()//2, HEIGHT//2 - 60))
-
-        prompt = render_text(font, "Choose your reward:", TEXT_CREAM)
-        screen.blit(prompt, (WIDTH//2 - prompt.get_width()//2, HEIGHT//2 - 20))
-
-        option_1 = render_text(font, f"1: {reward_options[0]}", (196, 214, 255))
-        option_2 = render_text(font, f"2: {reward_options[1]}", (196, 214, 255))
-        screen.blit(option_1, (WIDTH//2 - option_1.get_width()//2, HEIGHT//2 + 20))
-        screen.blit(option_2, (WIDTH//2 - option_2.get_width()//2, HEIGHT//2 + 50))
+        wrap_w = WIDTH - 40
+        y = HEIGHT // 2 - 60
+        y += draw_wrapped_centered(screen, font, level_up_message, TEXT_GOLD, WIDTH // 2, y, wrap_w) + 14
+        y += draw_wrapped_centered(screen, font, "Choose your reward:", TEXT_CREAM, WIDTH // 2, y, wrap_w) + 14
+        y += draw_wrapped_centered(screen, font, f"1: {reward_options[0]}", (196, 214, 255), WIDTH // 2, y, wrap_w) + 6
+        draw_wrapped_centered(screen, font, f"2: {reward_options[1]}", (196, 214, 255), WIDTH // 2, y, wrap_w)
 
         pygame.display.flip()
 
@@ -1875,19 +2849,19 @@ while running:
 
         if event.type == pygame.KEYDOWN:
             # Movement (frozen while a conversation is open)
-            if event.key in (pygame.K_LEFT, pygame.K_a) and not dialogue_open and not market_open and not map_open and not journal_open:
+            if event.key in (pygame.K_LEFT, pygame.K_a) and not dialogue_open and not market_open and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open:
                 player_facing = "left"
                 player_is_walking = move_player(-1, 0)
                 player_walk_timer = 0.0
-            if event.key in (pygame.K_RIGHT, pygame.K_d) and not dialogue_open and not market_open and not map_open and not journal_open:
+            if event.key in (pygame.K_RIGHT, pygame.K_d) and not dialogue_open and not market_open and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open:
                 player_facing = "right"
                 player_is_walking = move_player(1, 0)
                 player_walk_timer = 0.0
-            if event.key in (pygame.K_UP, pygame.K_w) and not dialogue_open and not market_open and not map_open and not journal_open:
+            if event.key in (pygame.K_UP, pygame.K_w) and not dialogue_open and not market_open and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open:
                 player_facing = "up"
                 player_is_walking = move_player(0, -1)
                 player_walk_timer = 0.0
-            if event.key in (pygame.K_DOWN, pygame.K_s) and not dialogue_open and not market_open and not map_open and not journal_open:
+            if event.key in (pygame.K_DOWN, pygame.K_s) and not dialogue_open and not market_open and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open:
                 player_facing = "down"
                 player_is_walking = move_player(0, 1)
                 player_walk_timer = 0.0
@@ -1906,7 +2880,7 @@ while running:
             if event.key == pygame.K_m and location == "farm":
                 if map_open:
                     map_open = False
-                elif not inventory_open and not level_up_pending and not dialogue_open and not market_open and not journal_open:
+                elif not inventory_open and not level_up_pending and not dialogue_open and not market_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open:
                     map_open = True
             elif event.key == pygame.K_ESCAPE and map_open:
                 map_open = False
@@ -1916,7 +2890,7 @@ while running:
             if event.key == pygame.K_x:
                 if journal_open:
                     journal_open = False
-                elif not inventory_open and not level_up_pending and not dialogue_open and not market_open and not map_open and not journal_open:
+                elif not inventory_open and not level_up_pending and not dialogue_open and not market_open and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open:
                     journal_open = True
             elif event.key == pygame.K_ESCAPE and journal_open:
                 journal_open = False
@@ -1976,6 +2950,13 @@ while running:
                                 market_message = f"Sold {trade['qty']} {SEEDS[trade['item']]['name']}"
                             else:
                                 market_message = "Not enough to sell!"
+                        elif trade["type"] == "sell_good":
+                            if goods_inventory.get(trade["item"], 0) >= trade["qty"]:
+                                goods_inventory[trade["item"]] -= trade["qty"]
+                                emeralds += trade["price"]
+                                market_message = f"Sold {trade['qty']} {GOODS_INFO[trade['item']]['name']}"
+                            else:
+                                market_message = "Not enough to sell!"
                         elif trade["type"] == "buy_tool":
                             if emeralds >= trade["price"]:
                                 emeralds -= trade["price"]
@@ -2024,8 +3005,113 @@ while running:
                 elif event.key in (pygame.K_DOWN, pygame.K_s):
                     market_selection = (market_selection + 1) % num_options
 
+            # Build menu: B opens/closes it (outdoors, nothing else open).
+            # Up/Down pick a building type, E attempts to place it at the
+            # tile(s) currently faced.
+            just_placed_building = False
+            if event.key == pygame.K_b and location == "farm":
+                if build_menu_open:
+                    build_menu_open = False
+                elif not inventory_open and not level_up_pending and not dialogue_open and not market_open and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open:
+                    build_menu_open = True
+                    build_menu_selection = 0
+            elif event.key == pygame.K_ESCAPE and build_menu_open:
+                build_menu_open = False
+
+            if build_menu_open:
+                if event.key in (pygame.K_UP, pygame.K_w):
+                    build_menu_selection = (build_menu_selection - 1) % len(BUILD_MENU_ORDER)
+                elif event.key in (pygame.K_DOWN, pygame.K_s):
+                    build_menu_selection = (build_menu_selection + 1) % len(BUILD_MENU_ORDER)
+                elif event.key == pygame.K_e:
+                    placed = attempt_place_building(BUILD_MENU_ORDER[build_menu_selection])
+                    if placed:
+                        build_menu_open = False
+                        just_placed_building = True
+                        recompute_farm_tier()
+
+            # Farm Status screen: K opens/closes it (outdoors, nothing else open)
+            if event.key == pygame.K_k and location == "farm":
+                if farm_status_open:
+                    farm_status_open = False
+                elif not inventory_open and not level_up_pending and not dialogue_open and not market_open and not map_open and not journal_open and not build_menu_open and not building_panel_open:
+                    farm_status_open = True
+            elif event.key == pygame.K_ESCAPE and farm_status_open:
+                farm_status_open = False
+
+            # Interacting with an existing player building (facing it, press
+            # E) opens its status/production/repair panel. just_placed_building
+            # stops the same E press that JUST placed a new building from also
+            # being read as "open the building I'm now facing" underneath it.
+            # just_opened_building_panel guards the symmetric case: without it,
+            # this same E press would also fall through to the "navigate/
+            # confirm" block below (now that building_panel_open just flipped
+            # True) and instantly confirm whatever option defaults to selected
+            # — the same double-action bug the ruin/portal entry had.
+            just_opened_building_panel = False
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not just_placed_building and location == "farm":
+                if event.key == pygame.K_e:
+                    fdx, fdy = FACING_DELTA[player_facing]
+                    fx, fy = player_x + fdx, player_y + fdy
+                    if 0 <= fx < WORLD_W and 0 <= fy < WORLD_H and farm[fy][fx]["building_id"] is not None:
+                        active_building = farm_buildings[farm[fy][fx]["building_id"]]
+                        building_panel_open = True
+                        building_panel_selection = 0
+                        just_opened_building_panel = True
+
+            # Building panel: navigate/confirm/leave
+            if building_panel_open and active_building is not None and not just_opened_building_panel:
+                options = get_building_panel_options(active_building)
+                if event.key in (pygame.K_UP, pygame.K_w):
+                    building_panel_selection = (building_panel_selection - 1) % len(options)
+                elif event.key in (pygame.K_DOWN, pygame.K_s):
+                    building_panel_selection = (building_panel_selection + 1) % len(options)
+                elif event.key == pygame.K_ESCAPE:
+                    building_panel_open = False
+                elif event.key == pygame.K_e:
+                    chosen = options[building_panel_selection]
+                    if chosen["kind"] == "leave":
+                        building_panel_open = False
+                    elif chosen["kind"] == "recipe" and chosen["affordable"]:
+                        consume_recipe_inputs(chosen["recipe"]["input"])
+                        proc_time = chosen["recipe"]["time"]
+                        proc_qty = chosen["recipe"]["qty"]
+                        if active_building["type"] == "mill" and any_active_building("windmill"):
+                            proc_time *= 0.6  # Windmill speeds up every Mill's production
+                        # Poor building condition -> Lower quality products -> Lower profit
+                        if active_building["condition"] < CONDITION_POOR:
+                            proc_qty = max(1, proc_qty // 2)
+                        elif active_building["condition"] < CONDITION_WORN:
+                            proc_time *= 1.3
+                        active_building["processing"] = {
+                            "recipe_name": chosen["recipe"]["name"], "time_left": proc_time,
+                            "output": chosen["recipe"]["output"], "qty": proc_qty,
+                        }
+                        market_message, market_message_timer = f"Started: {chosen['recipe']['name']}", 2.0
+                    elif chosen["kind"] == "collect":
+                        out_key, qty = active_building["processing"]["output"], active_building["processing"]["qty"]
+                        goods_inventory[out_key] = goods_inventory.get(out_key, 0) + qty
+                        active_building["processing"] = None
+                        market_message, market_message_timer = f"Collected {qty} {GOODS_INFO[out_key]['name']}", 2.0
+                    elif chosen["kind"] == "collect_stock":
+                        goods_inventory["honey"] = goods_inventory.get("honey", 0) + active_building["stock"]
+                        market_message, market_message_timer = f"Collected {active_building['stock']} Honey", 2.0
+                        active_building["stock"] = 0
+                    elif chosen["kind"] == "repair":
+                        cost = chosen["repair_cost"]
+                        if all((emeralds if k == "emeralds" else resources.get(k, 0)) >= v for k, v in cost.items()):
+                            for k, v in cost.items():
+                                if k == "emeralds":
+                                    emeralds -= v
+                                else:
+                                    resources[k] -= v
+                            active_building["condition"] = 100.0
+                            market_message, market_message_timer = "Repaired!", 1.6
+                        else:
+                            market_message, market_message_timer = "Not enough resources to repair!", 1.8
+
             # Sleeping in the house bed
-            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and location == "house":
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "house":
                 if event.key == pygame.K_e and (interior_player_x, interior_player_y) == INTERIOR_BED:
                     season_before = season_for_day(day)
                     day += 1
@@ -2041,13 +3127,13 @@ while running:
                         day_popup_queue.append({"text": f"Day {day}", "timer": 0.0})
 
             # Entering the house (must be standing on the doorway and press E)
-            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and location == "farm":
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
                 if event.key == pygame.K_e and (player_x, player_y) in DOOR_TILES:
                     location = "house"
                     interior_player_x, interior_player_y = INTERIOR_DOOR[0], INTERIOR_DOOR[1] - 1
 
             # Renting/returning a horse at a stable (facing it and press E)
-            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and location == "farm":
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
                 if event.key == pygame.K_e:
                     fdx, fdy = FACING_DELTA[player_facing]
                     fx, fy = player_x + fdx, player_y + fdy
@@ -2063,8 +3149,26 @@ while running:
                             market_message = "Not enough emeralds to rent a horse!"
                         market_message_timer = 2.5
 
-            # Chopping a tree (must be equipped with the axe and facing it)
-            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and location == "farm":
+            # Paying a kingdom's gate toll (facing it, press E) — a one-time
+            # payment; once paid the gate stays open for the rest of the game.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e:
+                    fdx, fdy = FACING_DELTA[player_facing]
+                    fx, fy = player_x + fdx, player_y + fdy
+                    if 0 <= fx < WORLD_W and 0 <= fy < WORLD_H and farm[fy][fx]["kingdom_id"] is not None:
+                        kingdom = kingdoms[farm[fy][fx]["kingdom_id"]]
+                        if not kingdom["paid"]:
+                            if emeralds >= kingdom["toll"]:
+                                emeralds -= kingdom["toll"]
+                                kingdom["paid"] = True
+                                market_message = f"Welcome to {kingdom['name']}!"
+                            else:
+                                market_message = f"Need {kingdom['toll']}g for the {kingdom['name']} toll!"
+                            market_message_timer = 2.5
+
+            # Chopping a tree (must be equipped with the axe and facing it) —
+            # drops Wood, the base material for most construction.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
                 if event.key == pygame.K_e and equipped_tool == axe_tool:
                     fdx, fdy = FACING_DELTA[player_facing]
                     fx, fy = player_x + fdx, player_y + fdy
@@ -2072,6 +3176,27 @@ while running:
                         farm[fy][fx]["state"] = "grass"
                         farm[fy][fx]["tree_variant"] = None
                         swinging, swing_timer = True, 0.0
+                        wood_gain = random.randint(4, 8)
+                        resources["wood"] += wood_gain
+                        market_message, market_message_timer = f"+{wood_gain} Wood", 1.6
+
+            # Mining a boulder (must be equipped with the Pick and facing it) —
+            # drops Stone, with a smaller chance of Iron.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e and equipped_tool == pick_tool:
+                    fdx, fdy = FACING_DELTA[player_facing]
+                    fx, fy = player_x + fdx, player_y + fdy
+                    if 0 <= fx < WORLD_W and 0 <= fy < WORLD_H and farm[fy][fx]["state"] == "rock":
+                        farm[fy][fx]["state"] = "grass"
+                        swinging, swing_timer = True, 0.0
+                        stone_gain = random.randint(3, 6) * pick_tool["level"]
+                        resources["stone"] += stone_gain
+                        toast = f"+{stone_gain} Stone"
+                        if random.random() < 0.25:
+                            iron_gain = random.randint(1, 2)
+                            resources["iron"] += iron_gain
+                            toast += f", +{iron_gain} Iron"
+                        market_message, market_message_timer = toast, 1.6
 
             # Entering a ruin (facing it, outdoors, press E) — descends into
             # the underworld, remembering exactly where to reappear on return.
@@ -2079,7 +3204,7 @@ while running:
             # as "standing on the portal, return to the surface" below, since
             # the arrival tile IS the portal tile.
             just_entered_ruin = False
-            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and location == "farm":
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
                 if event.key == pygame.K_e:
                     fdx, fdy = FACING_DELTA[player_facing]
                     fx, fy = player_x + fdx, player_y + fdy
@@ -2092,10 +3217,11 @@ while running:
                         player_x, player_y = ruin["underworld_x"], ruin["underworld_y"]
                         player_visual_x, player_visual_y = float(player_x), float(player_y)
                         just_entered_ruin = True
+                        has_visited_underworld = True  # the farm can now be raided
 
             # Returning to the surface (standing on the portal tile, or
             # facing it, press E)
-            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not just_entered_ruin and location == "underworld":
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and not just_entered_ruin and location == "underworld":
                 if event.key == pygame.K_e:
                     fdx, fdy = FACING_DELTA[player_facing]
                     fx, fy = player_x + fdx, player_y + fdy
@@ -2116,7 +3242,7 @@ while running:
             # position a full tile off from where it visually stands). On
             # death it drops Hellsteel and counts toward purifying this
             # ruin's patch of desert back on the surface.
-            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not just_entered_ruin and location == "underworld":
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and not just_entered_ruin and location == "underworld":
                 if event.key == pygame.K_e and underworld[player_y][player_x]["state"] != "portal" and equipped_tool == sword_tool:
                     swinging, swing_timer = True, 0.0
                     target_demon = None
@@ -2143,8 +3269,27 @@ while running:
                                         "timer": 0.0,
                                     })
 
+            # Striking a farm raider (same sword-reach mechanic as underworld
+            # demons) — surface raids drop Hellsteel too, since it's the same
+            # demon, just wandered up through a ruin rather than met down below.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e and equipped_tool == sword_tool:
+                    swinging, swing_timer = True, 0.0
+                    target_demon = None
+                    best_dist = SWORD_REACH
+                    for demon in farm_demons:
+                        d = math.hypot(demon["x"] - player_x, demon["y"] - player_y)
+                        if d <= best_dist:
+                            best_dist = d
+                            target_demon = demon
+                    if target_demon is not None:
+                        target_demon["hp"] -= 1
+                        if target_demon["hp"] <= 0:
+                            farm_demons.remove(target_demon)
+                            hellsteel += 1
+
             # Tile actions only if inventory closed and outdoors
-            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and location == "farm":
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
                 tile = farm[player_y][player_x]
 
                 # Plant
@@ -2201,13 +3346,17 @@ while running:
                         seed_inventory[harvested_seed]+=harvest_amount
                         xp+=xp_gain
                         harvested+=1
+                        farming_skill_xp += xp_gain
 
 
-                        #tomato haste ability 
+                        #tomato haste ability
                         if harvested_seed=="tomato":
                             haste=True
                             haste_timer=0.0
 
+                        #Orchard Plot: apple/grape planted on its footprint
+                        #auto-replant on harvest instead of needing a fresh seed
+                        orchard_replant = (player_x, player_y) in orchard_tiles and harvested_seed in ("apple", "grape")
 
                         #Hoe ability
                         if equipped_tool==hoe_tool and seed_inventory.get(harvested_seed,0)>0:
@@ -2217,12 +3366,26 @@ while running:
                             tile["soil_variant"]=random.randrange(len(SOIL_IMAGES))
                             tile["stage_anim"]=0.0
                             seed_inventory[harvested_seed]-=1
+                        elif orchard_replant:
+                            tile["state"]="planted"
+                            tile["timer"]=0.0
+                            tile["seed"]=harvested_seed
+                            tile["soil_variant"]=random.randrange(len(SOIL_IMAGES))
+                            tile["stage_anim"]=0.0
                         else:
                             tile["state"]="grass"
                             tile["timer"]=0.0
                             tile["seed"]=None
                             tile["soil_variant"]=None
 
+                        #Farming skill: a slower, parallel XP track fed by the
+                        #same harvests, unlocking passive farm-wide bonuses
+                        #(see farming_skill_growth_mult / _bypasses_winter /
+                        #_build_discount) instead of one-off rewards.
+                        while farming_skill_xp >= farming_skill_xp_needed(farming_skill_level):
+                            farming_skill_xp -= farming_skill_xp_needed(farming_skill_level)
+                            farming_skill_level += 1
+                            achievement_queue.append({"text": f"Farming Skill Level {farming_skill_level}!", "timer": 0.0})
 
                         #levil up logic via xp
                         if xp>=xp_needed:
@@ -2269,7 +3432,7 @@ while running:
 
     #Continuous movement: keep stepping at a steady interval while a
     #direction key is held, instead of requiring a fresh press per tile.
-    if not dialogue_open and not market_open and not map_open and not level_up_pending and not inventory_open and not journal_open:
+    if not dialogue_open and not market_open and not map_open and not level_up_pending and not inventory_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open:
         keys_held = pygame.key.get_pressed()
         if keys_held[pygame.K_LEFT] or keys_held[pygame.K_a]:
             held_dx, held_dy, held_facing = -1, 0, "left"
@@ -2294,9 +3457,35 @@ while running:
     else:
         move_repeat_timer = 0.0
 
-    #Growth update: planted -> sprout -> growing -> grown -> withered
-    for row in farm:
-        for tile in row:
+    #Farm buildings: construction progress, condition decay, and any
+    #in-progress production ticking down — all continuous over real time
+    #(scaled by DAY_LENGTH) rather than gated behind sleeping, so a Mill
+    #doesn't pause just because you wandered into the underworld.
+    for b in farm_buildings:
+        if b["stage"] == "building":
+            b["progress_days"] += dt / DAY_LENGTH
+            info = FARM_BUILDING_TYPES[b["type"]]
+            if b["progress_days"] >= info["build_days"]:
+                b["stage"] = "active"
+                b["condition"] = 100.0
+                achievement_queue.append({"text": f"{info['label']} construction complete!", "timer": 0.0})
+                recompute_farm_tier()
+        elif b["stage"] == "active":
+            b["condition"] = max(0.0, b["condition"] - CONDITION_DECAY_PER_DAY * (dt / DAY_LENGTH))
+            if b["processing"] is not None and b["processing"]["time_left"] > 0:
+                b["processing"]["time_left"] = max(0.0, b["processing"]["time_left"] - dt)
+            if b["type"] == "beehive":
+                b["_honey_timer"] += dt
+                gain_interval = 6.0 if b["flower_bonus"] else 12.0
+                if b["_honey_timer"] >= gain_interval:
+                    b["_honey_timer"] -= gain_interval
+                    b["stock"] += 1
+
+    #Growth update: planted -> sprout -> growing -> grown -> withered.
+    #Growth speed is modulated per-tile by growth_rate_at() (farming skill
+    #bonus, winter slowdown, nearby Well/Greenhouse) instead of a flat dt.
+    for y, row in enumerate(farm):
+        for x, tile in enumerate(row):
             state = tile["state"]
             if state == "grass":
                 continue
@@ -2304,7 +3493,7 @@ while running:
             tile["stage_anim"] += dt
 
             if state in ("planted", "sprout", "growing", "grown"):
-                tile["timer"] += dt
+                tile["timer"] += dt * growth_rate_at(x, y)
                 seed = SEEDS[tile["seed"]]
                 grow_time = seed["grow_time"]
                 wither_time = seed.get("wither_time", grow_time * 2)
@@ -2366,16 +3555,12 @@ while running:
                 draw_y = (y - cam_y) * tile_draw_size
                 tile = farm[y][x]
 
-             # --- Ground (grass is always the base layer) ---
-                if tile["state"] == "water":
-                    # Water is drawn oversized like grass so pond edges spill
-                    # across tile boundaries rather than reading as a hard square
-                    ground_img = WATER_FRAMES[tile["water_variant"]][water_frame_for(x, y, current_ticks)]
-                    overflow_size = int(tile_draw_size * GRASS_OVERFLOW_SCALE)
-                    ground_scaled = pygame.transform.scale(ground_img, (overflow_size, overflow_size))
-                    offset = (overflow_size - tile_draw_size) // 2
-                    screen.blit(ground_scaled, (draw_x - offset, draw_y - offset))
-                elif tile["ground_static"] is not None:
+             # --- Ground (grass is always the base layer). Water tiles fall
+             # through to the ordinary grass drawing below — the lake/pond
+             # itself is one single precomputed smooth shape drawn as its
+             # own pass further down, not a per-tile texture, so it reads as
+             # a real lake instead of a grid of blended water tiles. ---
+                if tile["ground_static"] is not None:
                     ground_scaled = pygame.transform.scale(tile["ground_static"], (tile_draw_size, tile_draw_size))
                     screen.blit(ground_scaled, (draw_x, draw_y))
                 else:
@@ -2405,6 +3590,18 @@ while running:
                     tree_scaled = pygame.transform.scale(tree_img, (tile_draw_size * 2, tile_draw_size * 2))
                     screen.blit(tree_scaled, (draw_x - tile_draw_size // 2, draw_y - tile_draw_size))
 
+                # --- Mineable boulder: flush 1-tile sprite, no overhang ---
+                if tile["state"] == "rock":
+                    boulder_scaled = pygame.transform.scale(IMG_BOULDER, (tile_draw_size, tile_draw_size))
+                    screen.blit(boulder_scaled, (draw_x, draw_y))
+
+                # --- Kingdom wall: flush 1-tile sprite, tiles repeat to form
+                # the perimeter (the gate itself is drawn separately, once
+                # per kingdom, in the kingdoms pass below) ---
+                if tile["state"] == "wall":
+                    wall_scaled = pygame.transform.scale(IMG_WALL_STONE, (tile_draw_size, tile_draw_size))
+                    screen.blit(wall_scaled, (draw_x, draw_y))
+
                 # --- Crop growth stage, animated ---
                 if tile["state"] == "grown":
                     stage_img = CROP_IMAGES.get(tile["seed"])
@@ -2424,6 +3621,44 @@ while running:
                     offset_x = draw_x + (tile_draw_size - size) // 2 + sway
                     offset_y = draw_y + (tile_draw_size - size)
                     screen.blit(crop_scaled, (offset_x, offset_y))
+
+        #Lakes/ponds: one precomputed smooth-shore image per water body,
+        #drawn on top of the grass already rendered underneath it, instead
+        #of a grid of individually-blended water tiles. Culled to only the
+        #ones actually on screen, and each shape caches its own smoothscale
+        #result (expensive — real interpolation, not nearest-neighbor) keyed
+        #on the target pixel size, since that size only changes when zoom
+        #changes, not every single frame — with dozens of lakes on a big
+        #map, re-smoothscaling all of them every frame was the single
+        #biggest frame-time cost in the game.
+        for ws in water_shapes:
+            if ws["x"] + ws["w"] < cam_x_i - 1 or ws["x"] > cam_x_i + visible_cols:
+                continue
+            if ws["y"] + ws["h"] < cam_y_i - 2 or ws["y"] > cam_y_i + visible_rows:
+                continue
+            ws_dx = (ws["x"] - cam_x) * tile_draw_size
+            ws_dy = (ws["y"] - cam_y) * tile_draw_size
+            target_size = (int(ws["w"] * tile_draw_size), int(ws["h"] * tile_draw_size))
+            if ws.get("_cached_size") != target_size:
+                ws["_cached_scaled"] = pygame.transform.smoothscale(ws["surface"], target_size)
+                ws["_cached_size"] = target_size
+            screen.blit(ws["_cached_scaled"], (ws_dx, ws_dy))
+
+        #Fish: peaceful, swim within their own lake, small bob for a
+        #"just below the surface" look.
+        for f in fish:
+            if f["x"] < cam_x_i - 1 or f["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if f["y"] < cam_y_i - 1 or f["y"] > cam_y_i + visible_rows + 1:
+                continue
+            f_draw_x = (f["x"] - cam_x) * tile_draw_size
+            f_draw_y = (f["y"] - cam_y) * tile_draw_size
+            bob = math.sin(current_ticks * 0.006 + f["x"] * 3) * tile_draw_size * 0.05
+            sprite = IMG_FISH if f["facing_right"] else IMG_FISH_FLIPPED
+            fish_size = int(tile_draw_size * 0.7)
+            fish_scaled = pygame.transform.scale(sprite, (fish_size, fish_size))
+            screen.blit(fish_scaled, (f_draw_x + (tile_draw_size - fish_size) // 2,
+                                       f_draw_y + (tile_draw_size - fish_size) // 2 - bob))
 
         # --- House exterior: sprite is 2 tiles tall, anchored so its bottom
         # edge sits on the bottom of its 1-tile solid footprint (the roof
@@ -2483,6 +3718,46 @@ while running:
             sh_scaled = pygame.transform.scale(IMG_FISHERMAN_SHACK, (tile_draw_size * 2, tile_draw_size * 2))
             screen.blit(sh_scaled, (sh_dx, sh_dy))
 
+        #Biome-flavor village centerpieces (pagoda/adobe/snow-cabin): same
+        #2x2 bottom-anchored pattern
+        for fb in flavor_buildings:
+            fb_dx = (fb["x"] - cam_x) * tile_draw_size
+            fb_dy = (fb["y"] - cam_y) * tile_draw_size - tile_draw_size
+            fb_scaled = pygame.transform.scale(FLAVOR_HOUSE_IMAGES[fb["flavor"]], (tile_draw_size * 2, tile_draw_size * 2))
+            screen.blit(fb_scaled, (fb_dx, fb_dy))
+
+        #Kingdom gates: drawn once per kingdom, spanning both of its gate
+        #tiles (the wall segments themselves are drawn per-tile above)
+        for kingdom in kingdoms:
+            gt_dx = (kingdom["gate_x"] - cam_x) * tile_draw_size
+            gt_dy = (kingdom["gate_y"] - cam_y) * tile_draw_size - tile_draw_size
+            gt_scaled = pygame.transform.scale(IMG_KINGDOM_GATE, (tile_draw_size * 2, tile_draw_size * 2))
+            screen.blit(gt_scaled, (gt_dx, gt_dy))
+
+        #Player-constructed farm buildings: bottom-anchored like every other
+        #structure. Under construction, the scaffolding overlay + a progress
+        #bar stand in for the real sprite; once active, a thin condition bar
+        #appears only once it's actually worn (green/yellow/red).
+        for b in farm_buildings:
+            fw, fh = FARM_BUILDING_TYPES[b["type"]]["footprint"]
+            fb_dx = (b["x"] - cam_x) * tile_draw_size
+            fb_dy = (b["y"] - cam_y) * tile_draw_size - (tile_draw_size if fh > 1 else 0)
+            draw_w, draw_h = tile_draw_size * fw, tile_draw_size * fh
+            if b["stage"] == "building":
+                site_scaled = pygame.transform.scale(IMG_CONSTRUCTION_SITE, (draw_w, draw_h))
+                screen.blit(site_scaled, (fb_dx, fb_dy))
+                info = FARM_BUILDING_TYPES[b["type"]]
+                pct = min(1.0, b["progress_days"] / info["build_days"])
+                bar_rect = pygame.Rect(fb_dx, fb_dy - 8, draw_w, 5)
+                draw_bar(screen, bar_rect, pct, (232, 196, 90))
+            else:
+                bldg_scaled = pygame.transform.scale(FARM_BUILDING_IMAGES[b["type"]], (draw_w, draw_h))
+                screen.blit(bldg_scaled, (fb_dx, fb_dy))
+                if b["condition"] < CONDITION_WORN:
+                    cond_color = (200, 60, 56) if b["condition"] < CONDITION_POOR else (222, 176, 60)
+                    bar_rect = pygame.Rect(fb_dx, fb_dy - 8, draw_w, 5)
+                    draw_bar(screen, bar_rect, b["condition"] / 100.0, cond_color)
+
         #NPCs: drawn at their continuous position with the same camera transform
         #as tiles. Idle NPCs get the same subtle 1–2px breathing bob as the
         #player, on individually-phased sine waves so they don't all rise/fall
@@ -2519,6 +3794,20 @@ while running:
             animal_scaled = pygame.transform.scale(sprite_set[animal["species"]], (tile_draw_size, tile_draw_size))
             screen.blit(animal_scaled, (a_draw_x, a_draw_y - bob))
 
+        #Farm raiders: demons that wandered up through a ruin, same look and
+        #behavior as their underworld kin
+        for demon in farm_demons:
+            fd_draw_x = (demon["x"] - cam_x) * tile_draw_size
+            fd_draw_y = (demon["y"] - cam_y) * tile_draw_size
+            bob = (abs(math.sin(current_ticks * 0.01 + demon["x"] * 3)) * tile_draw_size * 0.08
+                   if demon["state"] != "idle" else math.sin(current_ticks * 0.0022 + demon["x"] * 2.1) * tile_draw_size * 0.04)
+            demon_sprite = IMG_DEMON if demon["facing_right"] else IMG_DEMON_FLIPPED
+            demon_scaled = pygame.transform.scale(demon_sprite, (tile_draw_size, tile_draw_size))
+            screen.blit(demon_scaled, (fd_draw_x, fd_draw_y - bob))
+            if demon["hp"] < DEMON_MAX_HP:
+                bar_rect = pygame.Rect(fd_draw_x, fd_draw_y - 8, tile_draw_size, 5)
+                draw_bar(screen, bar_rect, demon["hp"] / DEMON_MAX_HP, (200, 40, 40))
+
         draw_size = tile_draw_size
         px = (player_x - cam_x) * tile_draw_size
         py = (player_y - cam_y) * tile_draw_size
@@ -2539,15 +3828,21 @@ while running:
                     facing_npc_name = villager["name"]
                     break
 
+        facing_farm_demon = any(math.hypot(d["x"] - player_x, d["y"] - player_y) <= SWORD_REACH for d in farm_demons)
+
         hud_prompt = None
         if (player_x, player_y) in DOOR_TILES:
             hud_prompt = "Press E to enter"
+        elif facing_farm_demon and equipped_tool == sword_tool:
+            hud_prompt = "Press E to strike"
         elif facing_npc_name is not None:
             hud_prompt = f"Press E to talk to {facing_npc_name}"
         elif facing_in_bounds and farm[fy][fx]["stable_id"] is not None:
             hud_prompt = "Press E to return the horse" if mounted else f"Press E to rent a horse ({HORSE_RENTAL_COST}g)"
         elif facing_in_bounds and equipped_tool == axe_tool and axe_tool is not None and farm[fy][fx]["state"] == "tree":
             hud_prompt = "Press E to chop"
+        elif facing_in_bounds and equipped_tool == pick_tool and farm[fy][fx]["state"] == "rock":
+            hud_prompt = "Press E to mine"
         elif facing_in_bounds and farm[fy][fx]["market_id"] is not None:
             hud_prompt = "Press E to trade"
         elif facing_in_bounds and farm[fy][fx]["smithy_id"] is not None:
@@ -2556,6 +3851,14 @@ while running:
             hud_prompt = "Press E to trade with the fisherman"
         elif facing_in_bounds and farm[fy][fx]["ruin_id"] is not None:
             hud_prompt = "Press E to enter the ruins"
+        elif facing_in_bounds and farm[fy][fx]["building_id"] is not None:
+            fb = farm_buildings[farm[fy][fx]["building_id"]]
+            fb_label = FARM_BUILDING_TYPES[fb["type"]]["label"]
+            hud_prompt = f"{fb_label}: under construction" if fb["stage"] == "building" else f"Press E to use the {fb_label}"
+        elif facing_in_bounds and farm[fy][fx]["kingdom_id"] is not None:
+            kingdom = kingdoms[farm[fy][fx]["kingdom_id"]]
+            hud_prompt = (f"Welcome to {kingdom['name']}" if kingdom["paid"]
+                          else f"Press E to pay {kingdom['toll']}g to enter {kingdom['name']}")
 
     elif location == "underworld":
         #Camera
@@ -2708,11 +4011,18 @@ while running:
         tool_rect = tool_rotated.get_rect(center=anchor)
         screen.blit(tool_rotated, tool_rect)
 
-    screen.blit(render_text(font, f"{equipped_tool['name']} Lvl {equipped_tool['level']}", TEXT_CREAM),(px-5,py-25))
+    # Both of these are anchored to the player's on-screen position, which can
+    # sit right at the screen edge near a world boundary (camera clamps there
+    # instead of centering) — clamp the label's own x so it can't slide off
+    # either side, rather than trusting px to always leave enough room.
+    tool_label_surf = render_text(font, f"{equipped_tool['name']} Lvl {equipped_tool['level']}", TEXT_CREAM)
+    tool_label_x = max(4, min(WIDTH - tool_label_surf.get_width() - 4, px - 5))
+    screen.blit(tool_label_surf, (tool_label_x, py - 25))
 
     if hud_prompt is not None:
         prompt_surf = render_text(ui_font, hud_prompt, TEXT_GOLD)
-        screen.blit(prompt_surf, (px + draw_size // 2 - prompt_surf.get_width() // 2, py - 46))
+        prompt_x = max(4, min(WIDTH - prompt_surf.get_width() - 4, px + draw_size // 2 - prompt_surf.get_width() // 2))
+        screen.blit(prompt_surf, (prompt_x, py - 46))
 
     #Season tint: a soft color wash over the whole farm scene standing in
     #for re-skinning every tile per season.
@@ -2842,15 +4152,23 @@ while running:
             y_offset+=30
         screen.blit(render_text(font, f"Equipped Tool: {equipped_tool['name']} Lvl {equipped_tool['level']}", equipped_tool["color"]),(WIDTH//2-120,HEIGHT//2+50))
 
-    #Dialogue box
+    #Dialogue box — NPC tips/greetings are full sentences that can easily be
+    #wider than the screen as a single line, so wrap them and size the box
+    #to however many lines that actually takes instead of a fixed height.
     if dialogue_open:
-        box_w, box_h = WIDTH - 40, 90
+        box_w = WIDTH - 40
+        text_lines = wrap_text(ui_font, dialogue_text, box_w - 32)
+        line_h = ui_font.get_height() + 2
+        box_h = max(90, 24 + len(text_lines) * line_h + 34)
         box_x, box_y = 20, (HEIGHT - UI_BAR_HEIGHT) - box_h - 16
         box = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
         box.fill((30, 26, 22, 235))
         screen.blit(box, (box_x, box_y))
         pygame.draw.rect(screen, TEXT_GOLD, (box_x, box_y, box_w, box_h), 2)
-        screen.blit(render_text(ui_font, dialogue_text, TEXT_CREAM), (box_x + 16, box_y + 16))
+        ty = box_y + 16
+        for line in text_lines:
+            screen.blit(render_text(ui_font, line, TEXT_CREAM), (box_x + 16, ty))
+            ty += line_h
         screen.blit(render_text(tool_font, "Press E to close", TEXT_GOLD), (box_x + 16, box_y + box_h - 28))
 
     #Marketplace panel
@@ -2878,6 +4196,8 @@ while running:
                 label = f"Buy {trade['qty']} {SEEDS[trade['item']]['name']} — {trade['price']}g"
             elif trade["type"] == "sell":
                 label = f"Sell {trade['qty']} {SEEDS[trade['item']]['name']} — +{trade['price']}g"
+            elif trade["type"] == "sell_good":
+                label = f"Sell {trade['qty']} {GOODS_INFO[trade['item']]['name']} — +{trade['price']}g"
             elif trade["type"] == "buy_tool":
                 label = f"Buy the {trade['tool_name'].capitalize()} — {trade['price']}g"
             elif trade["type"] == "buy_pick_upgrade":
@@ -2894,9 +4214,8 @@ while running:
     #Marketplace feedback message (e.g. "Bought 5 Corn", "Not enough emeralds!")
     if market_message_timer > 0:
         market_message_timer -= dt
-        msg_surf = render_text(ui_font, market_message, TEXT_GOLD)
-        msg_surf.set_alpha(255 if market_message_timer > 0.5 else int(255 * market_message_timer / 0.5))
-        screen.blit(msg_surf, (WIDTH // 2 - msg_surf.get_width() // 2, 110))
+        alpha = 255 if market_message_timer > 0.5 else int(255 * market_message_timer / 0.5)
+        draw_wrapped_centered(screen, ui_font, market_message, TEXT_GOLD, WIDTH // 2, 110, WIDTH - 40, alpha=alpha)
 
     #World map overlay
     if map_open:
@@ -2946,6 +4265,16 @@ while running:
         for shrine in shrines:
             shx, shy = to_map_xy(shrine["x"], shrine["y"])
             pygame.draw.circle(screen, (210, 176, 90), (shx, shy), 3)
+
+        for kingdom in kingdoms:
+            kx, ky = to_map_xy(kingdom["x"], kingdom["y"])
+            color = (230, 200, 90) if kingdom["paid"] else (170, 60, 150)
+            pygame.draw.circle(screen, color, (kx, ky), 6)
+            pygame.draw.circle(screen, (10, 10, 14), (kx, ky), 6, 1)
+
+        for fb in flavor_buildings:
+            fx_m, fy_m = to_map_xy(fb["x"], fb["y"])
+            pygame.draw.circle(screen, (240, 170, 200), (fx_m, fy_m), 3)
 
         for npc in npcs:
             nx, ny = to_map_xy(npc["x"], npc["y"])
@@ -3002,43 +4331,181 @@ while running:
                     icon_scaled = silhouette
                 screen.blit(icon_scaled, (cx + 14, cy + 14))
 
+            # Text column is narrow (icon eats the cell's left third), so
+            # everything here uses micro_font and wraps rather than a fixed
+            # font that could run past the cell's own right edge.
+            text_col_w = cell_w - 66
             name = info["name"] if discovered else "???"
             name_color = TEXT_CREAM if discovered else (140, 136, 148)
-            name_surf = render_text(tool_font, name, name_color)
-            screen.blit(name_surf, (cx + 60, cy + 14))
+            for j, line in enumerate(wrap_text(micro_font, name, text_col_w)[:2]):
+                screen.blit(render_text(micro_font, line, name_color), (cx + 60, cy + 12 + j * 14))
 
             if discovered:
-                val_surf = render_text(tool_font, f"{info.get('value', '?')}g", TEXT_GOLD)
-                screen.blit(val_surf, (cx + 60, cy + 36))
+                val_surf = render_text(micro_font, f"{info.get('value', '?')}g", TEXT_GOLD)
+                screen.blit(val_surf, (cx + 60, cy + 42))
             else:
                 hint = info.get("unlock_hint", "???")
-                hint_surf = render_text(tool_font, hint, (140, 136, 148))
-                screen.blit(hint_surf, (cx + 60, cy + 36))
+                hint_surf = render_text(micro_font, hint, (140, 136, 148))
+                screen.blit(hint_surf, (cx + 60, cy + 42))
 
         hint = render_text(tool_font, "Press X or Esc to close", TEXT_CREAM)
         screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, HEIGHT - UI_BAR_HEIGHT - 24))
 
-    #Achievement Popups
+    #Build menu: every buildable building type, cost, and affordability
+    if build_menu_open:
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((10, 10, 14, 235))
+        screen.blit(overlay, (0, 0))
+
+        b_title = render_text(font, "Build Menu", TEXT_GOLD)
+        screen.blit(b_title, (WIDTH // 2 - b_title.get_width() // 2, 10))
+        res_line = f"Wood {resources['wood']}   Stone {resources['stone']}   Iron {resources['iron']}   Emeralds {emeralds}"
+        res_surf = render_text(tool_font, res_line, TEXT_CREAM)
+        screen.blit(res_surf, (WIDTH // 2 - res_surf.get_width() // 2, 40))
+
+        row_h = 27
+        top = 66
+        for i, btype in enumerate(BUILD_MENU_ORDER):
+            b_info = FARM_BUILDING_TYPES[btype]
+            cost_parts = []
+            for res, amt in b_info["cost"].items():
+                unit = "g" if res == "emeralds" else res[0].upper()
+                cost_parts.append(f"{amt}{unit}")
+            cost_str = " ".join(cost_parts)
+            can_afford = all((emeralds if r == "emeralds" else resources.get(r, 0)) >= a
+                              for r, a in b_info["cost"].items())
+            if i == build_menu_selection:
+                color = TEXT_GOLD
+            elif can_afford:
+                color = TEXT_CREAM
+            else:
+                color = (150, 90, 90)
+            line = f"{b_info['label']} ({b_info['category']}) — {cost_str} — {b_info['build_days']}d"
+            screen.blit(render_text(tool_font, line, color), (30, top + i * row_h))
+
+        hint = render_text(tool_font, "Up/Down select, E to place facing you, Esc/B close", TEXT_CREAM)
+        screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, HEIGHT - UI_BAR_HEIGHT - 24))
+
+    #Build feedback message (e.g. "Not enough resources!")
+    if build_message_timer > 0:
+        build_message_timer -= dt
+        alpha = 255 if build_message_timer > 0.5 else int(255 * build_message_timer / 0.5)
+        draw_wrapped_centered(screen, ui_font, build_message, TEXT_GOLD, WIDTH // 2, 110, WIDTH - 40, alpha=alpha)
+
+    #Building panel: production/repair/status for an existing farm building,
+    #same visual language as the marketplace panel
+    if building_panel_open and active_building is not None:
+        panel_options = get_building_panel_options(active_building)
+        box_w = WIDTH - 40
+
+        # Pre-wrap every option's label so the box is sized from the actual
+        # rendered line count, not just the option count — an option that
+        # wraps to 2 lines (a long recipe/repair-cost string) would otherwise
+        # spill past a box sized for 1 line each.
+        wrapped_rows = []
+        for i, opt in enumerate(panel_options):
+            if opt["kind"] == "recipe" and not opt["affordable"]:
+                color = (150, 90, 90)
+            elif opt["kind"] == "info":
+                color = (170, 166, 176)
+            elif i == building_panel_selection:
+                color = TEXT_GOLD
+            else:
+                color = TEXT_CREAM
+            for line in wrap_text(ui_font, opt["label"], box_w - 40):
+                wrapped_rows.append((line, color))
+
+        box_h = min((HEIGHT - UI_BAR_HEIGHT) - 20, 70 + len(wrapped_rows) * 22)
+        box_x, box_y = 20, ((HEIGHT - UI_BAR_HEIGHT) - box_h) // 2
+        box = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+        box.fill((30, 26, 22, 235))
+        screen.blit(box, (box_x, box_y))
+        pygame.draw.rect(screen, TEXT_GOLD, (box_x, box_y, box_w, box_h), 2)
+
+        b_info = FARM_BUILDING_TYPES[active_building["type"]]
+        screen.blit(render_text(font, b_info["label"], TEXT_GOLD), (box_x + 16, box_y + 8))
+        if active_building["stage"] == "active":
+            cond_surf = render_text(tool_font, f"Condition {int(active_building['condition'])}%", TEXT_CREAM)
+            screen.blit(cond_surf, (box_x + box_w - cond_surf.get_width() - 16, box_y + 14))
+
+        line_y = box_y + 44
+        for line, color in wrapped_rows:
+            screen.blit(render_text(ui_font, line, color), (box_x + 20, line_y))
+            line_y += 22
+
+    #Farm Status screen: tier, farming skill, resources, and every
+    #constructed building with its condition — the base-management hub
+    if farm_status_open:
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((10, 10, 14, 235))
+        screen.blit(overlay, (0, 0))
+
+        fs_title = render_text(font, "Farm Status", TEXT_GOLD)
+        screen.blit(fs_title, (WIDTH // 2 - fs_title.get_width() // 2, 10))
+
+        tier_surf = render_text(ui_font, FARM_TIERS[farm_tier], TEXT_CREAM)
+        screen.blit(tier_surf, (WIDTH // 2 - tier_surf.get_width() // 2, 42))
+
+        y = 70
+        skill_needed = farming_skill_xp_needed(farming_skill_level)
+        screen.blit(render_text(tool_font, f"Farming Skill Lvl {farming_skill_level}  "
+                                            f"({farming_skill_xp:.0f}/{skill_needed:.0f} XP)", TEXT_CREAM), (24, y))
+        skill_bar_rect = pygame.Rect(24, y + 18, WIDTH - 48, 10)
+        draw_bar(screen, skill_bar_rect, farming_skill_xp / skill_needed if skill_needed else 0, TEXT_GOLD)
+        y += 38
+
+        res_surf = render_text(tool_font,
+                                f"Wood {resources['wood']}   Stone {resources['stone']}   Iron {resources['iron']}",
+                                TEXT_CREAM)
+        screen.blit(res_surf, (24, y))
+        y += 24
+
+        if farm_buildings:
+            screen.blit(render_text(tool_font, "Buildings:", TEXT_GOLD), (24, y))
+            y += 20
+            for b in farm_buildings:
+                label = FARM_BUILDING_TYPES[b["type"]]["label"]
+                if b["stage"] == "building":
+                    status = "under construction"
+                    color = (200, 190, 150)
+                else:
+                    status = f"condition {int(b['condition'])}%"
+                    color = TEXT_CREAM if b["condition"] >= CONDITION_WORN else (
+                        (222, 176, 60) if b["condition"] >= CONDITION_POOR else (200, 60, 56))
+                line_surf = render_text(micro_font, f"  {label} — {status}", color)
+                screen.blit(line_surf, (24, y))
+                y += 16
+                if y > HEIGHT - UI_BAR_HEIGHT - 40:
+                    break
+        else:
+            screen.blit(render_text(tool_font, "No buildings yet — press B to open the build menu.", (170, 166, 176)),
+                        (24, y))
+
+        hint = render_text(tool_font, "Press K or Esc to close", TEXT_CREAM)
+        screen.blit(hint, (WIDTH // 2 - hint.get_width() // 2, HEIGHT - UI_BAR_HEIGHT - 24))
+
+    #Achievement Popups — wrapped/centered so a long achievement name can
+    #never spill off either edge of the screen; each popup advances y_offset
+    #by however many lines it actually took, so wrapped entries don't overlap
+    #the next popup in the queue.
+    popup_wrap_w = WIDTH - 40
     y_offset=10
     for popup in achievement_queue[:]:
         popup["timer"]+=dt
         alpha=255
         if popup["timer"]>ACHIEVEMENT_DISPLAY_TIME-0.5: alpha=int(255*(ACHIEVEMENT_DISPLAY_TIME-popup["timer"])/0.5)
-        text_surf=render_text(font, popup["text"], TEXT_GOLD)
-        text_surf.set_alpha(alpha)
-        screen.blit(text_surf,(WIDTH//2-text_surf.get_width()//2,y_offset))
-        y_offset+=30
+        used_h = draw_wrapped_centered(screen, font, popup["text"], TEXT_GOLD, WIDTH // 2, y_offset, popup_wrap_w, alpha=alpha)
+        y_offset += used_h + 6
 
-        #remove it if it exceeds achivment display time 
+        #remove it if it exceeds achivment display time
         if popup["timer"]>ACHIEVEMENT_DISPLAY_TIME: achievement_queue.remove(popup)
 
     #Level-Up Popups
     y_offset=50
     for popup in level_popup_queue[:]:
         popup["timer"]+=dt
-        text_surf=render_text(font, popup["text"], TEXT_CREAM)
-        screen.blit(text_surf,(WIDTH//2-text_surf.get_width()//2,y_offset))
-        y_offset+=30
+        used_h = draw_wrapped_centered(screen, font, popup["text"], TEXT_CREAM, WIDTH // 2, y_offset, popup_wrap_w)
+        y_offset += used_h + 6
         if popup["timer"]>LEVEL_POPUP_TIME: level_popup_queue.remove(popup)
 
     #Day Popups
@@ -3047,9 +4514,8 @@ while running:
         popup["timer"]+=dt
         alpha=255
         if popup["timer"]>DAY_POPUP_TIME-0.5: alpha=int(255*(DAY_POPUP_TIME-popup["timer"])/0.5)
-        text_surf=render_text(font, popup["text"], TEXT_CREAM)
-        text_surf.set_alpha(alpha)
-        screen.blit(text_surf,(WIDTH//2-text_surf.get_width()//2,y_offset))
+        used_h = draw_wrapped_centered(screen, font, popup["text"], TEXT_CREAM, WIDTH // 2, y_offset, popup_wrap_w, alpha=alpha)
+        y_offset += used_h
         if popup["timer"]>DAY_POPUP_TIME: day_popup_queue.remove(popup)
 
     pygame.display.flip()

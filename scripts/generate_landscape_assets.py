@@ -42,6 +42,9 @@ TREE_SPECIES = [
     dict(name="jungle_tree", shape="bushy", canopy=(30, 96, 54, 255), shade=(18, 70, 40, 255), outline=(12, 50, 30, 255),
          canopy_r=0.72, canopy_cy=0.46, trunk_h=0.22, trunk_w=0.24),
     dict(name="cactus", shape="cactus", canopy=(70, 130, 70, 255), shade=(48, 100, 52, 255), outline=(34, 76, 40, 255)),
+    dict(name="snow_pine", shape="pine", canopy=(224, 232, 236, 255), shade=(176, 196, 208, 255), outline=(140, 160, 176, 255),
+         canopy_r=0.54, canopy_cy=0.5, trunk_h=0.12, trunk_w=0.16,
+         trunk=(70, 56, 44, 255), trunk_shade=(52, 40, 32, 255)),
 ]
 
 ROCK = (150, 148, 142, 255)

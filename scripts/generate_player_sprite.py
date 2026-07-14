@@ -52,6 +52,54 @@ CHARACTERS = {
     ),
 }
 
+# Generic villagers who populate villages near marketplaces — reuse the same
+# silhouette/animation, just recolored, so "tons of NPCs" doesn't mean
+# hand-authoring tons of unique character designs.
+VILLAGERS = {
+    "Elin": dict(
+        skin=(240, 200, 165, 255),
+        hat_brim=(90, 140, 128, 255), hat_band=(64, 106, 96, 255), hat_top=(112, 168, 152, 255),
+        shirt=(96, 150, 90, 255), shirt_shade=(70, 118, 66, 255),
+        overalls=(120, 88, 58, 255), overalls_shade=(94, 66, 42, 255), strap=(70, 50, 32, 255),
+        shoe=(70, 48, 30, 255), hair=(90, 60, 38, 255), hair_style="short",
+    ),
+    "Tomas": dict(
+        skin=(210, 168, 128, 255),
+        hat_brim=(120, 124, 128, 255), hat_band=(86, 90, 94, 255), hat_top=(148, 152, 156, 255),
+        shirt=(60, 84, 140, 255), shirt_shade=(44, 64, 112, 255),
+        overalls=(56, 90, 66, 255), overalls_shade=(40, 68, 48, 255), strap=(28, 48, 34, 255),
+        shoe=(64, 46, 30, 255), hair=(36, 30, 26, 255), hair_style="short",
+    ),
+    "Greta": dict(
+        skin=(250, 220, 195, 255),
+        hat_brim=(150, 100, 168, 255), hat_band=(112, 70, 128, 255), hat_top=(172, 124, 188, 255),
+        shirt=(230, 140, 160, 255), shirt_shade=(196, 108, 128, 255),
+        overalls=(108, 118, 74, 255), overalls_shade=(82, 92, 54, 255), strap=(56, 64, 36, 255),
+        shoe=(88, 62, 42, 255), hair=(102, 70, 48, 255), hair_style="long",
+    ),
+    "Oskar": dict(
+        skin=(150, 105, 74, 255),
+        hat_brim=(196, 152, 82, 255), hat_band=(150, 110, 54, 255), hat_top=(216, 176, 108, 255),
+        shirt=(214, 168, 56, 255), shirt_shade=(178, 136, 40, 255),
+        overalls=(58, 74, 110, 255), overalls_shade=(42, 56, 86, 255), strap=(28, 38, 62, 255),
+        shoe=(52, 38, 26, 255), hair=(28, 22, 20, 255), hair_style="short",
+    ),
+    "Nia": dict(
+        skin=(176, 128, 92, 255),
+        hat_brim=(190, 70, 70, 255), hat_band=(148, 48, 48, 255), hat_top=(208, 96, 96, 255),
+        shirt=(70, 148, 148, 255), shirt_shade=(52, 118, 118, 255),
+        overalls=(112, 70, 128, 255), overalls_shade=(86, 52, 100, 255), strap=(58, 34, 68, 255),
+        shoe=(66, 46, 34, 255), hair=(34, 26, 22, 255), hair_style="long",
+    ),
+    "Bram": dict(
+        skin=(232, 196, 160, 255),
+        hat_brim=(70, 70, 76, 255), hat_band=(48, 48, 54, 255), hat_top=(92, 92, 98, 255),
+        shirt=(130, 130, 134, 255), shirt_shade=(100, 100, 104, 255),
+        overalls=(104, 76, 50, 255), overalls_shade=(80, 56, 36, 255), strap=(52, 36, 22, 255),
+        shoe=(58, 42, 28, 255), hair=(150, 110, 60, 255), hair_style="short",
+    ),
+}
+
 
 def s(v):
     return v * SCALE
@@ -150,7 +198,7 @@ def render_sheet(palette):
 
 def main():
     out_dir = os.path.join(os.path.dirname(__file__), "..", "FarmImg")
-    for name, palette in CHARACTERS.items():
+    for name, palette in {**CHARACTERS, **VILLAGERS}.items():
         sheet = render_sheet(palette)
         out_path = os.path.join(out_dir, f"Player_{name}.png")
         sheet.save(out_path)

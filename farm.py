@@ -73,7 +73,7 @@ IMG_WALL = load_image("Wall.png")
 GRASS_FRAME_SIZE = 46  # must match EXPORT_CELL in scripts/generate_ground_tiles.py
 GRASS_OVERFLOW_SCALE = GRASS_FRAME_SIZE / 32  # 32 = the nominal 1-tile size
 # Ground1-12 meadow/maple, 13-24 sakura, 25-36 jungle, 37-48 desert (see BIOME_GROUND_INDICES)
-GROUND_VARIANT_COUNT = 48
+GROUND_VARIANT_COUNT = 60
 
 
 def load_grass_frames(name):

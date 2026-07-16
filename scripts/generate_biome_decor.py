@@ -175,6 +175,42 @@ def make_snow_mound():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_seashell():
+    import math as _m
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+    shell = (240, 220, 196, 255)
+    shell_shade = (210, 182, 150, 255)
+    pink = (230, 170, 168, 255)
+    cx, cy = CS * 0.5, CS * 0.66
+    draw.pieslice([cx - CS * 0.22, cy - CS * 0.22, cx + CS * 0.22, cy + CS * 0.16], 180, 360, fill=shell)
+    for ang in (200, 235, 270, 305, 340):
+        rad = _m.radians(ang)
+        ex = cx + _m.cos(rad) * CS * 0.22
+        ey = cy + _m.sin(rad) * CS * 0.16
+        draw.line([(cx, cy), (ex, ey)], fill=shell_shade, width=max(1, int(CS * 0.02)))
+    draw.ellipse([cx - CS * 0.06, cy - CS * 0.1, cx + CS * 0.06, cy + CS * 0.02], fill=pink)
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
+def make_fallen_coconut():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+    husk = (120, 86, 54, 255)
+    husk_shade = (92, 64, 38, 255)
+    husk_light = (146, 108, 68, 255)
+    cx, cy = CS * 0.5, CS * 0.64
+    r = CS * 0.18
+    draw.ellipse([cx - r, cy - r * 0.85, cx + r, cy + r * 0.85], fill=husk)
+    draw.ellipse([cx - r, cy, cx + r, cy + r * 0.85], fill=husk_shade)
+    draw.ellipse([cx - r * 0.35, cy - r * 0.55, cx + r * 0.1, cy - r * 0.15], fill=husk_light)
+    for _ in range(3):
+        px = cx + random.uniform(-r * 0.5, r * 0.5)
+        py = cy + random.uniform(-r * 0.3, r * 0.3)
+        draw.ellipse([px - 1, py - 1, px + 1, py + 1], fill=(60, 42, 26, 255))
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_tumbleweed().save(os.path.join(OUT_DIR, "DesertDecor1.png"))
     make_bleached_bones().save(os.path.join(OUT_DIR, "DesertDecor2.png"))
@@ -195,6 +231,10 @@ def main():
     make_leaf_pile().save(os.path.join(OUT_DIR, "MapleDecor1.png"))
     make_mushroom_cluster(2, (168, 108, 62, 255), (132, 82, 46, 255)).save(os.path.join(OUT_DIR, "MapleDecor2.png"))
     print("wrote MapleDecor1-2.png")
+
+    make_seashell().save(os.path.join(OUT_DIR, "TropicalDecor1.png"))
+    make_fallen_coconut().save(os.path.join(OUT_DIR, "TropicalDecor2.png"))
+    print("wrote TropicalDecor1-2.png")
 
 
 if __name__ == "__main__":

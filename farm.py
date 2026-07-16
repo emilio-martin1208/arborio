@@ -10,9 +10,16 @@ pygame.init()
 # Display must come first
 TILE_SIZE = 50
 INITIAL_VIEW_TILES = 10
-UI_BAR_HEIGHT = 120
+UI_BAR_HEIGHT = 138
 
-WORLD_W, WORLD_H = 320, 320
+WORLD_W, WORLD_H = 480, 320
+#The original continent all existing biome/settlement generation targets —
+#kept at its old size so that logic doesn't need to change. The extra
+#width (MAINLAND_W..WORLD_W) is reserved entirely for the archipelago:
+#one huge ocean with palm-covered islands, generated separately after the
+#mainland (see generate_archipelago), so ocean carving can never overwrite
+#a mainland tree/village/kingdom that landed nearby.
+MAINLAND_W = 320
 WIDTH = INITIAL_VIEW_TILES * TILE_SIZE
 HEIGHT = INITIAL_VIEW_TILES * TILE_SIZE + UI_BAR_HEIGHT
 #SCALED renders at the internal WIDTH x HEIGHT then scales the whole
@@ -130,13 +137,58 @@ BIOME_DECOR_IMAGES = {
     "jungle": [load_image("JungleDecor1.png"), load_image("JungleDecor2.png")],
     "desert": [load_image("DesertDecor1.png"), load_image("DesertDecor2.png")],
     "tundra": [load_image("TundraDecor1.png"), load_image("TundraDecor2.png")],
+    "tropical": [load_image("TropicalDecor1.png"), load_image("TropicalDecor2.png")],
 }
 
 IMG_PATH = load_image("Path.png")
 
 # Trees: 1 tile wide x 2 tiles tall, anchored at the bottom like the house.
-# 6 species (oak, tall_oak, pine, bushy, maple, sapling) for a mixed forest.
-TREE_IMAGES = [load_image(f"Tree{i}.png") for i in range(1, 11)]
+# 10 species for a mixed forest across biomes. Each species has several
+# pre-rendered shape variants (organic, lumpy lobed canopies rather than a
+# plain circle — see generate_landscape_assets.py) so same-species trees
+# don't all reuse one fixed silhouette; a random variant is assigned per
+# tree at placement time (tile["tree_shape"]).
+TREE_SHAPE_VARIANTS = 4
+_tree_full_images = [[load_image(f"Tree{i}_v{j}.png") for j in range(TREE_SHAPE_VARIANTS)] for i in range(1, 12)]
+
+# Split each tree image once at load time into a canopy half and a trunk
+# half, so wind can sway just the canopy every frame (trunk stays planted)
+# without re-slicing the source image on every draw call. The split row is
+# sized to the tallest trunk across all species so no species' trunk ever
+# pokes into the "canopy" half.
+TREE_TRUNK_ZONE_FRAC = 0.34
+TREE_CANOPY_IMAGES = []
+TREE_TRUNK_IMAGES = []
+for _variants in _tree_full_images:
+    _canopy_row, _trunk_row = [], []
+    for _img in _variants:
+        _tw, _th = _img.get_width(), _img.get_height()
+        _split_row = int(_th * (1 - TREE_TRUNK_ZONE_FRAC))
+        _canopy_row.append(_img.subsurface((0, 0, _tw, _split_row)).copy())
+        _trunk_row.append(_img.subsurface((0, _split_row, _tw, _th - _split_row)).copy())
+    TREE_CANOPY_IMAGES.append(_canopy_row)
+    TREE_TRUNK_IMAGES.append(_trunk_row)
+
+# Which species shed leaves, and what color those leaves are (matches each
+# species' canopy color in generate_landscape_assets.py). Conifers/cactus
+# are excluded — TREE_SPECIES order there is oak, tall_oak, pine, bushy,
+# maple, sapling, sakura, jungle_tree, cactus, snow_pine (0-indexed here).
+TREE_LEAF_COLORS = {
+    0: (46, 106, 48), 1: (32, 88, 42), 3: (92, 128, 52), 4: (200, 120, 54),
+    5: (70, 152, 66), 6: (232, 158, 186), 7: (30, 96, 54),
+}
+DECIDUOUS_TREE_INDICES = set(TREE_LEAF_COLORS.keys())
+LEAF_SPAWN_CHANCE = 0.0005
+falling_leaves = []  # {x, y, vx, vy, life, max_life, color, phase}
+
+#Footprints: left behind on foot (not mounted, not sailing), alternating
+#left/right of the direction of travel, fading out after a few seconds.
+FOOTPRINT_LIFETIME = 2.5
+FOOTPRINT_MAX_ALPHA = 70  # deliberately faint — a hint, not a trail marker
+FOOTPRINT_SPACING = 0.33  # tiles between consecutive prints along the path — smaller = denser trail
+FOOTPRINT_SIDE_OFFSET = 0.07  # narrower left/right stance, tighter to the centerline
+footprints = []  # {x, y, life, max_life, side}
+footprint_toggle = False  # alternates which foot fell last
 
 # Peaceful wandering animal mobs (no combat, just ambiance)
 ANIMAL_IMAGES = {"rabbit": load_image("Rabbit.png"), "bird": load_image("Bird.png")}
@@ -153,16 +205,58 @@ IMG_SHRINE = load_image("Shrine.png")  # 2 tiles wide x 2 tall, anchored like th
 IMG_BLACKSMITH = load_image("Blacksmith.png")  # 2 tiles wide x 2 tall
 IMG_FISHERMAN_SHACK = load_image("FishermanShack.png")  # 2 tiles wide x 2 tall
 
+# Town flavor: roads (gravel/stone/sand/brick, picked per-settlement — see
+# ROAD_MATERIAL_FOR_BIOME/KINGDOM_ROAD_MATERIAL), a tavern, a parked
+# carriage, a dock + rowboat pair near the waterfront, and two "civilized"
+# plant decor tiles distinct from the wild flowers used out in the fields.
+IMG_GRAVEL_PATH = load_image("GravelPath.png")  # 1 tile flush, used as ground_static
+IMG_STONE_PATH = load_image("StonePath.png")  # 1 tile flush, used as ground_static
+IMG_SAND_PATH = load_image("SandPath.png")  # 1 tile flush, used as ground_static
+IMG_BRICK_PATH = load_image("BrickPath.png")  # 1 tile flush, used as ground_static
+#Which road material a settlement gets, based on the biome its center tile
+#is in — falls back to gravel for biomes with no specific match. Kingdoms
+#always use brick regardless of biome (KINGDOM_ROAD_MATERIAL below), since
+#they're meant to read as the grandest, most "built up" settlement tier.
+ROAD_MATERIAL_FOR_BIOME = {
+    "desert": IMG_SAND_PATH, "tropical": IMG_SAND_PATH,
+    "tundra": IMG_STONE_PATH,
+}
+KINGDOM_ROAD_MATERIAL = IMG_BRICK_PATH
+IMG_TAVERN = load_image("Tavern.png")  # 2 tiles wide x 2 tall, anchored like the house
+IMG_CARRIAGE = load_image("Carriage.png")  # 2 tiles wide x 1 tall, sits flush
+IMG_DOCK = load_image("Dock.png")  # 1 wide x 2 tall, bottom-anchored toward the shore, rotated per approach direction
+IMG_BOAT = load_image("Boat.png")  # 1 tile, floats on the water tile just past the dock
+TOWN_DECOR_IMAGES = [load_image("TownPlant1.png"), load_image("TownPlant2.png")]
+
 # Biome-flavor village centerpieces + walled-kingdom set
 FLAVOR_HOUSE_IMAGES = {
     "sakura": load_image("SakuraHouse.png"),
     "desert": load_image("DesertHouse.png"),
     "snow": load_image("SnowHouse.png"),
+    "tribal": load_image("TribalHut.png"),
 }
-BIOME_TO_FLAVOR = {"sakura": "sakura", "desert": "desert", "tundra": "snow"}
+BIOME_TO_FLAVOR = {"sakura": "sakura", "desert": "desert", "tundra": "snow", "tropical": "tribal"}
+IMG_MONK_TEMPLE = load_image("MonkTemple.png")  # 2 tiles wide x 2 tall, one-off archipelago landmark
 IMG_WALL_STONE = load_image("WallStone.png")  # 1 tile, flush
 IMG_KINGDOM_GATE = load_image("KingdomGate.png")  # 2 tiles wide x 2 tall, anchored like the house
 KINGDOM_NAMES = ["Ashenfall", "Rivenhall", "Goldmere", "Stonewatch", "Emberkeep", "Thornwall"]
+KINGDOM_EPITHETS = ["Kingdom of Peace", "Kingdom of Iron Will", "Kingdom of the Long Winter",
+                    "Kingdom of Golden Fields", "Kingdom of Ancient Oaths", "Kingdom of the Last Light"]
+TOWN_NAMES = ["Yonjor", "Caldrun", "Emberholt", "Wrenmoor", "Duskvale", "Fenwick", "Aldergate",
+              "Hallowmere", "Brackwood", "Thistlefen"]
+TOWN_EPITHETS = ["Town of Good and Evil", "Town of Wandering Souls", "Town of the First Harvest",
+                 "Town of Broken Promises", "Town of the Long Road", "Town of Quiet Fortunes",
+                 "Town of the Silver Moon", "Town of Endless Autumn", "Town of Forgotten Names",
+                 "Town of the Restless Sea"]
+#Region entry banners (Skyrim-style name card) show the first time the
+#player steps into a named kingdom/town. Names are assigned in spawn
+#order; epithets are shuffled once per world-gen so the pairing varies
+#between playthroughs instead of always matching the same name.
+_shuffled_kingdom_epithets = KINGDOM_EPITHETS[:]
+random.shuffle(_shuffled_kingdom_epithets)
+_shuffled_town_epithets = TOWN_EPITHETS[:]
+random.shuffle(_shuffled_town_epithets)
+TOWN_REGION_RADIUS = 15  # tiles from a town's marketplace center counted as "inside town"
 HORSE_SHEET = load_image("Horse.png")  # 3-frame gallop strip: neutral, stride-A, stride-B
 HORSE_FRAME_SIZE = 32
 HORSE_FRAMES = [HORSE_SHEET.subsurface(pygame.Rect(col * HORSE_FRAME_SIZE, 0, HORSE_FRAME_SIZE, HORSE_FRAME_SIZE))
@@ -325,6 +419,8 @@ font = pygame.font.SysFont(FONT_NAME, 26, bold=True)
 ui_font = pygame.font.SysFont(FONT_NAME, 19, bold=True)  # smaller font for in-game UI
 tool_font = pygame.font.SysFont(FONT_NAME, 16, bold=True)  # compact label for the HUD tool slot
 micro_font = pygame.font.SysFont(FONT_NAME, 12, bold=True)  # crop journal cells — tight space
+region_name_font = pygame.font.SysFont(FONT_NAME, 30, bold=True)  # kingdom/town entry banner
+region_epithet_font = pygame.font.SysFont(FONT_NAME, 16, bold=True, italic=True)
 
 #Text colors and drop-shadow rendering, for a warmer, more readable look
 TEXT_CREAM = (250, 240, 218)
@@ -400,21 +496,46 @@ def draw_clock(surface, center, radius, progress, color=TEXT_CREAM):
     pygame.draw.line(surface, color, center, (hx, hy), 3)
 
 
-def draw_bar(surface, rect, fraction, fill_color, bg_color=(60, 48, 38), border_color=TEXT_CREAM):
-    pygame.draw.rect(surface, bg_color, rect)
+def draw_bar(surface, rect, fraction, fill_color, bg_color=(40, 33, 26), border_color=TEXT_CREAM):
+    """A recessed, slightly beveled bar: a drop shadow, a dark inset track,
+    and a top-lit gradient on the fill. Used for the HUD's HP/XP/skill bars
+    as well as small in-world condition/progress/HP bars, so the bevel only
+    engages once there's enough height for it to read as a bevel rather
+    than noise (tiny bars fall back to flat corners)."""
     fraction = max(0.0, min(1.0, fraction))
-    fill_w = int(rect.width * fraction)
+    radius = min(6, rect.height // 2) if rect.height >= 8 else 0
+
+    shadow = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+    pygame.draw.rect(shadow, (0, 0, 0, 70), shadow.get_rect(), border_radius=radius)
+    surface.blit(shadow, (rect.x, rect.y + 2))
+
+    pygame.draw.rect(surface, bg_color, rect, border_radius=radius)
+    if rect.height >= 8:
+        inner_shadow = pygame.Surface((max(1, rect.width - 4), 3), pygame.SRCALPHA)
+        inner_shadow.fill((0, 0, 0, 60))
+        surface.blit(inner_shadow, (rect.x + 2, rect.y + 2))
+
+    fill_w = int((rect.width - 4) * fraction) if rect.width > 4 else int(rect.width * fraction)
     if fill_w > 0:
-        pygame.draw.rect(surface, fill_color, (rect.x, rect.y, fill_w, rect.height))
-    pygame.draw.rect(surface, border_color, rect, 2)
+        inset = 2 if rect.width > 4 else 0
+        fill_rect = pygame.Rect(rect.x + inset, rect.y + inset, fill_w, rect.height - inset * 2)
+        fill_radius = min(4, fill_rect.height // 2) if fill_rect.height >= 6 else 0
+        pygame.draw.rect(surface, fill_color, fill_rect, border_radius=fill_radius)
+        if fill_rect.height >= 6:
+            highlight = pygame.Surface((fill_rect.width, max(1, fill_rect.height // 3)), pygame.SRCALPHA)
+            highlight.fill((255, 255, 255, 50))
+            surface.blit(highlight, (fill_rect.x, fill_rect.y))
+
+    pygame.draw.rect(surface, border_color, rect, 2, border_radius=radius)
 
 
 #Hotbar slot geometry, shared by hit-testing (mouse events) and drawing
 BAR_TOP = HEIGHT - UI_BAR_HEIGHT
-HOTBAR_ROW_Y = BAR_TOP + 10 + 52
-HOTBAR_ICON_SIZE = 28
-HOTBAR_SLOT_W = 78
-HOTBAR_X = 12
+HOTBAR_ROW_Y = BAR_TOP + 88
+HOTBAR_ICON_SIZE = 32
+HOTBAR_LABEL_Y = HOTBAR_ROW_Y + HOTBAR_ICON_SIZE + 4
+HOTBAR_SLOT_W = 80
+HOTBAR_X = 14
 
 
 def hotbar_slot_rect(i):
@@ -636,6 +757,13 @@ farm_status_open = False
 #another seed — populated with the marker's footprint tiles.
 orchard_tiles = set()
 
+#Every planted/sprout/growing/grown tile's (x, y), so the per-frame growth
+#tick only has to visit tiles that actually have a crop on them instead of
+#scanning the entire WORLD_W x WORLD_H grid every frame (~150k tiles on
+#the current map size, the vast majority of them permanently "grass") —
+#kept in sync at every place a tile enters or leaves the growth cycle.
+active_crop_tiles = set()
+
 #Farm defense: once the player has been to the underworld at least once,
 #the surface farm can be raided by demons that wandered up through a ruin.
 has_visited_underworld = False
@@ -710,6 +838,7 @@ BIOME_GROUND_INDICES = {
     "jungle": list(range(24, 36)),
     "desert": list(range(36, 48)),
     "tundra": list(range(48, 60)),
+    "tropical": list(range(36, 48)),  # reuses the desert's sandy palette for beaches
 }
 BIOME_TREE_INDICES = {
     "meadow": [0, 1, 2, 3, 5],       # oak, tall_oak, pine, bushy, sapling
@@ -718,7 +847,12 @@ BIOME_TREE_INDICES = {
     "jungle": [7, 7, 7, 3],          # mostly jungle_tree, a touch of bushy
     "desert": [8],                   # cactus only
     "tundra": [9, 9, 9, 3],          # mostly snow_pine, a touch of bushy
+    "tropical": [10],                # palm only
 }
+#"tropical" is deliberately absent from BIOME_NAMES — it's never chosen by
+#the coarse noise, only assigned by hand to the archipelago's carved
+#islands (see generate_archipelago), so palm-tree beaches don't randomly
+#bleed into the mainland.
 
 
 def biome_for(x, y):
@@ -742,6 +876,7 @@ farm = [
             "soil_variant": None,
             "stage_anim": 0.0,
             "tree_variant": None,
+            "tree_shape": 0,
             "market_id": None,
             "stable_id": None,
             "ruin_id": None,
@@ -762,6 +897,7 @@ farm = [
 MAP_BIOME_COLORS = {
     "meadow": (94, 153, 64), "maple": (176, 108, 58), "sakura": (232, 158, 186),
     "jungle": (30, 96, 54), "desert": (216, 190, 140), "tundra": (220, 230, 236),
+    "tropical": (232, 214, 156),
 }
 MAP_SURFACE = pygame.Surface((WORLD_W, WORLD_H))
 for _my in range(WORLD_H):
@@ -800,6 +936,8 @@ PLAYER_MAX_HP = 10
 player_hp = PLAYER_MAX_HP
 player_hurt_flash = 0.0  # seconds remaining on a brief red damage flash
 mounted = False  # riding a rented horse: moves HORSE_SPEED_MULT tiles per keypress
+sailing = False  # aboard a boat: water tiles become passable until you reach shore again
+monk_temple = None  # {"x", "y", "looted"} — at most one in the world, set by generate_archipelago
 HORSE_RENTAL_COST = 8
 MOVE_REPEAT_DELAY = 0.22  # seconds between steps while a direction key is held down
 move_repeat_timer = 0.0
@@ -894,15 +1032,28 @@ zoom = 1.2  # start slightly zoomed in for a closer camera, without excessive up
 tile_draw_size = int(TILE_SIZE * zoom)
 view_width, view_height = 10, 10  # Initial view
 
-#Player glide: the player's own on-screen position eases toward their real
+#Player glide: the player's own on-screen position tweens toward their real
 #(tile-locked) position instead of popping instantly, and the camera tracks
-#that same eased value — so the player visually glides tile-to-tile and the
-#world scrolls in lockstep underneath, instead of the sprite jumping a full
-#tile while the camera trails behind separately (which looked worse, not
-#smoother: a jarring pop followed by a catch-up slide).
-PLAYER_GLIDE_SMOOTH_SPEED = 12.0  # higher = glide catches up to the tile faster
+#that same tweened value — so the player visually glides tile-to-tile and
+#the world scrolls in lockstep underneath, instead of the sprite jumping a
+#full tile while the camera trails behind separately.
+#
+#This is a fixed-duration smoothstep tween (captures where the glide
+#currently is, then eases to the new tile over exactly PLAYER_MOVE_DURATION
+#seconds), not an open-ended exponential chase — an exponential ease never
+#fully catches up, so under held-key repeated movement it accumulates a
+#small trailing lag that varies step to step and reads as an uneven,
+#jittery pace. A tween that always finishes exactly on schedule gives the
+#same, smooth, repeatable glide every single tile.
+PLAYER_MOVE_DURATION = 0.18  # seconds for one tile's worth of glide, on foot
+HORSE_MOVE_DURATION = 0.14   # shorter — the horse's glide covers 2 tiles in less time, i.e. faster
+HORSE_MOVE_REPEAT_DELAY = 0.14  # steps also fire more often while mounted, on top of covering more ground per step
+HORSE_FRAME_TIME = 0.06  # faster leg-cycle than a walking human, to match the horse's higher speed
 player_visual_x = float(player_x)
 player_visual_y = float(player_y)
+player_glide_from_x = float(player_x)
+player_glide_from_y = float(player_y)
+player_glide_elapsed = PLAYER_MOVE_DURATION  # start "settled" — no glide needed before the first move
 
 VIGNETTE = load_image("Vignette.png")
 
@@ -1180,6 +1331,11 @@ market_selection = 0
 market_message = ""
 market_message_timer = 0.0
 
+region_banner_name = ""
+region_banner_epithet = ""
+region_banner_timer = 0.0
+current_region_key = None
+
 map_open = False
 journal_open = False  # crop compendium (X key)
 
@@ -1430,7 +1586,7 @@ def stamp_water_body(cx, cy, target_size):
 
 def spawn_water_body(target_size):
     for _ in range(60):
-        x, y = random.randint(6, WORLD_W - 7), random.randint(6, WORLD_H - 7)
+        x, y = random.randint(6, MAINLAND_W - 7), random.randint(6, WORLD_H - 7)
         # skip desert (dry biome!) and skip anywhere too close to another lake
         if biome_for(x, y) == "desert":
             continue
@@ -1439,25 +1595,35 @@ def spawn_water_body(target_size):
         if math.hypot(x - HOUSE_POS[0], y - HOUSE_POS[1]) < 8:
             continue  # don't drown the starting farm
         if stamp_water_body(x, y, target_size) > target_size // 3:
-            return
+            return x, y
+    return None
 
+
+# Centers of the big lakes that actually landed, so a dock can be added
+# beside each one later — spawn_dock_near isn't defined yet at this point
+# in the file, so the retroactive loop lives further down, right before
+# generate_archipelago() runs.
+big_lake_centers = []
 
 # 20 big-ish lakes + 30 small ponds (villages will get their own small ponds
 # later) — counts scaled ~2.5x for the larger world so water stays just as
 # common per unit area, not diluted across the bigger map.
 for _ in range(20):
-    spawn_water_body(random.randint(70, 140))
+    result = spawn_water_body(random.randint(70, 140))
+    if result:
+        big_lake_centers.append(result)
 for _ in range(30):
     spawn_water_body(random.randint(14, 30))
 
 
 def spawn_tree():
     for _ in range(30):
-        x, y = random.randint(0, WORLD_W - 1), random.randint(0, WORLD_H - 1)
+        x, y = random.randint(0, MAINLAND_W - 1), random.randint(0, WORLD_H - 1)
         if (farm[y][x]["state"] == "grass" and (x, y) not in FARM_BLOCKED_TILES
                 and (x, y) != (player_x, player_y)):
             farm[y][x]["state"] = "tree"
             farm[y][x]["tree_variant"] = random.choice(BIOME_TREE_INDICES[farm[y][x]["biome"]])
+            farm[y][x]["tree_shape"] = random.randrange(TREE_SHAPE_VARIANTS)
             return
 
 #Populate the landscape with trees at world-gen (scaled ~2.5x for the larger world)
@@ -1469,7 +1635,7 @@ def spawn_rock():
     """Mineable boulders (stone + a chance of iron), scattered the same
     bounded-retry way as trees. Slightly rarer than trees."""
     for _ in range(30):
-        x, y = random.randint(0, WORLD_W - 1), random.randint(0, WORLD_H - 1)
+        x, y = random.randint(0, MAINLAND_W - 1), random.randint(0, WORLD_H - 1)
         if (farm[y][x]["state"] == "grass" and (x, y) not in FARM_BLOCKED_TILES
                 and (x, y) != (player_x, player_y)):
             farm[y][x]["state"] = "rock"
@@ -1704,7 +1870,7 @@ animals = []
 def spawn_animal():
     species = random.choice(list(ANIMAL_IMAGES.keys()))
     for _ in range(50):
-        x, y = random.randint(0, WORLD_W - 1), random.randint(0, WORLD_H - 1)
+        x, y = random.randint(0, MAINLAND_W - 1), random.randint(0, WORLD_H - 1)
         if farm[y][x]["state"] == "grass" and (x, y) not in FARM_BLOCKED_TILES:
             animals.append({
                 "species": species, "x": float(x), "y": float(y),
@@ -1763,7 +1929,7 @@ def spawn_outpost(kind):
     min_dist = 45 if kind == "marketplace" else 10
     footprint_w = 2 if kind == "marketplace" else 1
     for _ in range(150):
-        x = random.randint(2, WORLD_W - footprint_w - 2)
+        x = random.randint(2, MAINLAND_W - footprint_w - 2)
         y = random.randint(2, WORLD_H - 3)
         if math.hypot(x - HOUSE_POS[0], y - HOUSE_POS[1]) < min_dist:
             continue
@@ -1791,6 +1957,22 @@ def spawn_outpost(kind):
 #around each marketplace so trading hubs feel like real settlements.
 stables = []
 villagers = []
+
+
+def _land_path_clear(x0, y0, x1, y1, samples=4):
+    """Checks a few points along the straight line from (x0,y0) to (x1,y1)
+    for water — a wander/flee target can be dry land at both ends and
+    still cut across a pond in between (villagers/animals walk in a
+    straight line, they don't pathfind), so the endpoint alone isn't
+    enough to keep them off the water."""
+    for i in range(1, samples + 1):
+        t = i / (samples + 1)
+        mx, my = x0 + (x1 - x0) * t, y0 + (y1 - y0) * t
+        if not (0 <= int(mx) < WORLD_W and 0 <= int(my) < WORLD_H):
+            return False
+        if farm[int(my)][int(mx)]["state"] == "water":
+            return False
+    return True
 
 
 def _outside_bounds(footprint, bounds):
@@ -2043,15 +2225,40 @@ def spawn_village(cx, cy):
     in the sakura/desert/tundra biomes also get a themed centerpiece house
     (pagoda, adobe, or snow cabin) so those regions read as their own
     distinct culture rather than the same generic buildings everywhere."""
+    road_material = ROAD_MATERIAL_FOR_BIOME.get(biome_for(cx, cy), IMG_GRAVEL_PATH)
+
+    n0 = len(stables)
     spawn_stable_near(cx, cy)
+    if len(stables) > n0:
+        b = stables[-1]
+        lay_road_path(cx, cy, b["x"], b["y"], road_material)
+
+    n0 = len(smithies)
     spawn_smithy_near(cx, cy)
+    if len(smithies) > n0:
+        b = smithies[-1]
+        lay_road_path(cx, cy, b["x"], b["y"], road_material)
+
+    n0 = len(shacks)
     spawn_fisherman_shack_near(cx, cy)
+    if len(shacks) > n0:
+        b = shacks[-1]
+        lay_road_path(cx, cy, b["x"], b["y"], road_material)
+
     for _ in range(random.randint(8, 14)):
         spawn_villager_near(cx, cy)
     if random.random() < 0.9:
+        n0 = len(wells)
         spawn_well_near(cx, cy)
+        if len(wells) > n0:
+            b = wells[-1]
+            lay_road_path(cx, cy, b["x"], b["y"], road_material)
     if random.random() < 0.5:
+        n0 = len(shrines)
         spawn_shrine_near(cx, cy)
+        if len(shrines) > n0:
+            b = shrines[-1]
+            lay_road_path(cx, cy, b["x"], b["y"], road_material)
     flavor = BIOME_TO_FLAVOR.get(biome_for(cx, cy))
     if flavor:
         spawn_flavor_house_near(cx, cy, flavor)
@@ -2091,7 +2298,7 @@ def spawn_village_in_biome(target_biome):
     themes to random chance across the whole map — mirrors how ruins are
     guaranteed to land in the desert."""
     for _ in range(400):
-        x = random.randint(4, WORLD_W - 6)
+        x = random.randint(4, MAINLAND_W - 6)
         y = random.randint(4, WORLD_H - 4)
         if biome_for(x, y) != target_biome:
             continue
@@ -2113,12 +2320,195 @@ def spawn_village_in_biome(target_biome):
         return
 
 
+towns = []
+taverns = []
+decor_horses = []
+decor_carriages = []
+docks = []
+boats = []
+town_construction_sites = []
+
+
+def spawn_tavern_near(cx, cy, bounds=None):
+    for _ in range(60):
+        ox = cx + random.randint(-8, 8)
+        oy = cy + random.randint(-8, 8)
+        footprint = {(ox, oy), (ox + 1, oy)}
+        if any(not (0 <= fx < WORLD_W and 0 <= fy < WORLD_H) for (fx, fy) in footprint):
+            continue
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
+            continue
+        if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+            continue
+        if _outside_bounds(footprint, bounds):
+            continue
+        for (fx, fy) in footprint:
+            farm[fy][fx]["state"] = "tavern"
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        taverns.append({"x": ox, "y": oy})
+        return
+
+
+def spawn_decor_horse_near(cx, cy, bounds=None):
+    """A standing, non-rentable horse prop — pure ambiance, unlike the
+    stable's rentable mount."""
+    for _ in range(40):
+        ox = cx + random.randint(-4, 4)
+        oy = cy + random.randint(-4, 4)
+        if not (0 <= ox < WORLD_W and 0 <= oy < WORLD_H):
+            continue
+        if (ox, oy) in FARM_BLOCKED_TILES or farm[oy][ox]["state"] != "grass":
+            continue
+        if _outside_bounds({(ox, oy)}, bounds):
+            continue
+        farm[oy][ox]["decor"] = None
+        FARM_BLOCKED_TILES.add((ox, oy))
+        decor_horses.append({"x": ox, "y": oy, "flip": random.random() < 0.5})
+        return
+
+
+def spawn_carriage_near(cx, cy, bounds=None):
+    for _ in range(50):
+        ox = cx + random.randint(-7, 7)
+        oy = cy + random.randint(-7, 7)
+        footprint = {(ox, oy), (ox + 1, oy)}
+        if any(not (0 <= fx < WORLD_W and 0 <= fy < WORLD_H) for (fx, fy) in footprint):
+            continue
+        if footprint & FARM_BLOCKED_TILES:  # flush, 1 tall — no overhang row
+            continue
+        if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+            continue
+        if _outside_bounds(footprint, bounds):
+            continue
+        for (fx, fy) in footprint:
+            farm[fy][fx]["state"] = "carriage"
+            farm[fy][fx]["decor"] = None
+        FARM_BLOCKED_TILES.update(footprint)
+        decor_carriages.append({"x": ox, "y": oy})
+        return
+
+
+def spawn_town_construction_site_near(cx, cy, bounds=None):
+    """Scaffolding-and-lumber clutter, purely decorative — reuses the same
+    IMG_CONSTRUCTION_SITE overlay the player's own in-progress buildings
+    use, just scattered as scenery to sell the idea of a growing town."""
+    for _ in range(50):
+        ox = cx + random.randint(-9, 9)
+        oy = cy + random.randint(-9, 9)
+        footprint = {(ox, oy), (ox + 1, oy)}
+        if any(not (0 <= fx < WORLD_W and 0 <= fy < WORLD_H) for (fx, fy) in footprint):
+            continue
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
+            continue
+        if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+            continue
+        if _outside_bounds(footprint, bounds):
+            continue
+        for (fx, fy) in footprint:
+            farm[fy][fx]["state"] = "town_site"
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        town_construction_sites.append({"x": ox, "y": oy})
+        return
+
+
+DOCK_DIRS = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}
+
+
+def spawn_dock_near(cx, cy, search_radius=14):
+    """Finds the nearest *shore* — a water tile within range that actually
+    has a grass neighbor on one of its 4 sides — and plants a short pier +
+    rowboat there. Quietly does nothing if no suitable shore is found.
+
+    Deliberately checks every candidate water tile for a shore neighbor as
+    it goes, rather than just grabbing the single nearest water tile and
+    hoping it borders land: when called from a point out on open water
+    (e.g. a lake's own center, not just a nearby town), the nearest water
+    tile IS that open water, and none of its neighbors are shore at all —
+    the real shore only shows up several tiles further out."""
+    best = None  # (d2, wx, wy, dname, sx, sy)
+    dirs = list(DOCK_DIRS.items())
+    for dy in range(-search_radius, search_radius + 1):
+        for dx in range(-search_radius, search_radius + 1):
+            wx, wy = cx + dx, cy + dy
+            if not (0 <= wx < WORLD_W and 0 <= wy < WORLD_H):
+                continue
+            if farm[wy][wx]["state"] != "water":
+                continue
+            d2 = dx * dx + dy * dy
+            if best is not None and d2 >= best[0]:
+                continue
+            for dname, (ddx, ddy) in dirs:
+                sx, sy = wx - ddx, wy - ddy
+                if not (0 <= sx < WORLD_W and 0 <= sy < WORLD_H):
+                    continue
+                # Note: shoreline tiles are deliberately already in
+                # FARM_BLOCKED_TILES (stamp_water_body's 1-tile buffer
+                # ring, so trees/rocks keep off the shore) — that's
+                # exactly where a dock belongs, so only reject on an
+                # actual building/other placed structure.
+                if farm[sy][sx]["state"] != "grass":
+                    continue
+                best = (d2, wx, wy, dname, sx, sy)
+                break
+    if best is None:
+        return
+    _, wx, wy, dname, sx, sy = best
+    farm[sy][sx]["decor"] = None
+    FARM_BLOCKED_TILES.add((sx, sy))
+    docks.append({"x": sx, "y": sy, "dir": dname})
+    boats.append({"x": float(wx), "y": float(wy), "bob_phase": random.uniform(0, 6.28)})
+
+
+def lay_road_path(x0, y0, x1, y1, material=None):
+    """A simple L-shaped road between two points — only ever touches tiles
+    that are still bare grass, so it can never pave over a building
+    (buildings are placed first; paths are laid afterward using their
+    final positions). `material` picks the ground_static texture (gravel,
+    stone, sand, or brick — see ROAD_MATERIAL_FOR_BIOME/KINGDOM_ROAD_MATERIAL),
+    defaulting to gravel."""
+    if material is None:
+        material = IMG_GRAVEL_PATH
+    tiles = set()
+    if random.random() < 0.5:
+        for x in range(min(x0, x1), max(x0, x1) + 1):
+            tiles.add((x, y0))
+        for y in range(min(y0, y1), max(y0, y1) + 1):
+            tiles.add((x1, y))
+    else:
+        for y in range(min(y0, y1), max(y0, y1) + 1):
+            tiles.add((x0, y))
+        for x in range(min(x0, x1), max(x0, x1) + 1):
+            tiles.add((x, y1))
+    for (x, y) in tiles:
+        if 0 <= x < WORLD_W and 0 <= y < WORLD_H and farm[y][x]["state"] == "grass":
+            farm[y][x]["ground_static"] = material
+            farm[y][x]["decor"] = None
+
+
+def scatter_town_foliage(cx, cy, radius=12, count=16):
+    """Potted plants/hedges on whatever bare grass is left over once
+    buildings and roads are placed — the 'civilized' counterpart to the
+    wild flower decor used out in the fields."""
+    placed = 0
+    attempts = 0
+    while placed < count and attempts < count * 8:
+        attempts += 1
+        x = cx + random.randint(-radius, radius)
+        y = cy + random.randint(-radius, radius)
+        if not (0 <= x < WORLD_W and 0 <= y < WORLD_H):
+            continue
+        if farm[y][x]["state"] != "grass" or farm[y][x]["ground_static"] is not None:
+            continue
+        farm[y][x]["decor"] = random.choice(TOWN_DECOR_IMAGES)
+        placed += 1
+
+
 def spawn_town(target_biome=None):
     """A town is a village turned up a notch: a second wave of stalls, more
     services, and a much bigger crowd — the mid-tier settlement between a
     single trading post and a walled kingdom. No wall; just bigger."""
     for _ in range(400):
-        x = random.randint(6, WORLD_W - 8)
+        x = random.randint(6, MAINLAND_W - 8)
         y = random.randint(6, WORLD_H - 6)
         if target_biome and biome_for(x, y) != target_biome:
             continue
@@ -2138,12 +2528,53 @@ def spawn_town(target_biome=None):
         outposts.append({"x": x, "y": y, "kind": "marketplace", "trades": generate_trades("marketplace"),
                           "variant": random.randrange(len(MARKETPLACE_IMAGES))})
 
+        town_id = len(towns)
+        towns.append({"x": x, "y": y, "name": TOWN_NAMES[town_id % len(TOWN_NAMES)],
+                      "epithet": _shuffled_town_epithets[town_id % len(_shuffled_town_epithets)]})
+
+        #Each building gets a road laid back to the town center right after
+        #it lands, using its real final position — material picked by the
+        #town's own biome (sand in desert/tropical, stone in tundra, gravel
+        #elsewhere) — and the stable gets a decorative horse standing next to it.
+        road_material = ROAD_MATERIAL_FOR_BIOME.get(biome_for(x, y), IMG_GRAVEL_PATH)
+        n0 = len(stables)
         spawn_stable_near(x, y)
+        if len(stables) > n0:
+            b = stables[-1]
+            lay_road_path(x, y, b["x"], b["y"], road_material)
+            spawn_decor_horse_near(b["x"], b["y"])
+
+        n0 = len(smithies)
         spawn_smithy_near(x, y)
+        if len(smithies) > n0:
+            b = smithies[-1]
+            lay_road_path(x, y, b["x"], b["y"], road_material)
+
+        n0 = len(shacks)
         spawn_fisherman_shack_near(x, y)
+        if len(shacks) > n0:
+            b = shacks[-1]
+            lay_road_path(x, y, b["x"], b["y"], road_material)
+
+        n0 = len(wells)
         spawn_well_near(x, y)
+        if len(wells) > n0:
+            b = wells[-1]
+            lay_road_path(x, y, b["x"], b["y"], road_material)
+
         if random.random() < 0.7:
+            n0 = len(shrines)
             spawn_shrine_near(x, y)
+            if len(shrines) > n0:
+                b = shrines[-1]
+                lay_road_path(x, y, b["x"], b["y"], road_material)
+
+        n0 = len(taverns)
+        spawn_tavern_near(x, y)
+        if len(taverns) > n0:
+            b = taverns[-1]
+            lay_road_path(x, y, b["x"], b["y"], road_material)
+
         for _ in range(3):
             spawn_outpost_near(x, y, "outpost")
         for _ in range(random.randint(18, 26)):
@@ -2152,6 +2583,11 @@ def spawn_town(target_biome=None):
         if flavor:
             spawn_flavor_house_near(x, y, flavor)
             spawn_flavor_house_near(x, y, flavor)
+
+        spawn_carriage_near(x, y)
+        spawn_town_construction_site_near(x, y)
+        spawn_dock_near(x, y)
+        scatter_town_foliage(x, y)
         return
 
 
@@ -2167,7 +2603,7 @@ kingdoms = []
 def spawn_kingdom(target_biome=None):
     kw, kh = random.randint(16, 20), random.randint(12, 14)
     for _ in range(300):
-        x0 = random.randint(6, WORLD_W - kw - 6)
+        x0 = random.randint(6, MAINLAND_W - kw - 6)
         y0 = random.randint(6, WORLD_H - kh - 6)
         cx, cy = x0 + kw // 2, y0 + kh // 2
         if target_biome and biome_for(cx, cy) != target_biome:
@@ -2213,9 +2649,10 @@ def spawn_kingdom(target_biome=None):
 
         toll = random.randint(40, 90)
         name = KINGDOM_NAMES[kingdom_id % len(KINGDOM_NAMES)]
+        epithet = _shuffled_kingdom_epithets[kingdom_id % len(_shuffled_kingdom_epithets)]
         kingdoms.append({"x": cx, "y": cy, "x0": x0, "y0": y0, "w": kw, "h": kh,
                           "gate_x": gate_x, "gate_y": y0 + kh - 1,
-                          "toll": toll, "paid": False, "name": name})
+                          "toll": toll, "paid": False, "name": name, "epithet": epithet})
 
         cfoot = {(cx, cy), (cx + 1, cy)}
         market_id = len(outposts)
@@ -2231,16 +2668,213 @@ def spawn_kingdom(target_biome=None):
         # stalls, etc. can never land outside the walls the way an
         # unconstrained "near a point" search otherwise could.
         interior_bounds = (x0 + 1, y0 + 1, x0 + kw - 2, y0 + kh - 2)
+
+        n0 = len(stables)
         spawn_stable_near(cx, cy, bounds=interior_bounds)
+        if len(stables) > n0:
+            b = stables[-1]
+            lay_road_path(cx, cy, b["x"], b["y"], KINGDOM_ROAD_MATERIAL)
+
+        n0 = len(smithies)
         spawn_smithy_near(cx, cy, bounds=interior_bounds)
+        if len(smithies) > n0:
+            b = smithies[-1]
+            lay_road_path(cx, cy, b["x"], b["y"], KINGDOM_ROAD_MATERIAL)
+
+        n0 = len(shacks)
         spawn_fisherman_shack_near(cx, cy, bounds=interior_bounds)
+        if len(shacks) > n0:
+            b = shacks[-1]
+            lay_road_path(cx, cy, b["x"], b["y"], KINGDOM_ROAD_MATERIAL)
+
+        n0 = len(wells)
         spawn_well_near(cx, cy, bounds=interior_bounds)
+        if len(wells) > n0:
+            b = wells[-1]
+            lay_road_path(cx, cy, b["x"], b["y"], KINGDOM_ROAD_MATERIAL)
+
+        n0 = len(shrines)
         spawn_shrine_near(cx, cy, bounds=interior_bounds)
+        if len(shrines) > n0:
+            b = shrines[-1]
+            lay_road_path(cx, cy, b["x"], b["y"], KINGDOM_ROAD_MATERIAL)
+
         for _ in range(4):
             spawn_outpost_near(cx, cy, random.choice(["outpost", "outpost", "marketplace"]), bounds=interior_bounds)
         for _ in range(random.randint(24, 34)):
             spawn_villager_near(cx, cy, bounds=interior_bounds)
         return
+
+
+#Archipelago: a huge ocean out past the mainland's eastern edge, crossable
+#only by boat, dotted with palm-covered islands — a couple of tribal
+#villages and one distant monk temple guarding rare gear and fruit.
+def generate_ocean_with_islands(cx, cy, target_size, islands):
+    """Same organic noise-perturbed-radius fill as stamp_water_body, but
+    sized for a huge ocean and with circular island holes carved out
+    before the final shape is built — otherwise the ocean's one smooth
+    shore image would just paint blue right over any island, since that
+    image only knows its own outer boundary. `islands` is a list of
+    (ix, iy, radius) tuples in world coordinates."""
+    stamped_tiles = []
+    max_r = int(math.sqrt(target_size / math.pi) + 2)
+    for dy in range(-max_r, max_r + 1):
+        for dx in range(-max_r, max_r + 1):
+            x, y = cx + dx, cy + dy
+            if not (0 <= x < WORLD_W and 0 <= y < WORLD_H):
+                continue
+            if (x, y) in FARM_BLOCKED_TILES:
+                continue
+            if farm[y][x]["state"] != "grass":
+                continue
+            r = math.hypot(dx, dy)
+            wiggle = _smooth_noise(x, y, cell=3.2) - 0.5
+            noise_r = r + wiggle * max_r * 0.7
+            if noise_r > max_r:
+                continue
+            on_island = False
+            for (ix, iy, irad) in islands:
+                idx, idy = x - ix, y - iy
+                ir = math.hypot(idx, idy)
+                iwiggle = _smooth_noise(x + 1000, y + 1000, cell=2.6) - 0.5
+                if ir + iwiggle * irad * 0.6 <= irad:
+                    on_island = True
+                    break
+            if on_island:
+                continue
+            farm[y][x]["state"] = "water"
+            farm[y][x]["ground_static"] = None
+            MAP_SURFACE.set_at((x, y), (54, 108, 176))
+            stamped_tiles.append((x, y))
+
+    if not stamped_tiles:
+        return 0
+    water_bodies.append((cx, cy))
+    stamped_set = set(stamped_tiles)
+    buffer_ring = set()
+    for (x, y) in stamped_tiles:
+        for ddx in (-1, 0, 1):
+            for ddy in (-1, 0, 1):
+                nx, ny = x + ddx, y + ddy
+                if (nx, ny) not in stamped_set:
+                    buffer_ring.add((nx, ny))
+    FARM_BLOCKED_TILES.update(buffer_ring)
+    for (bx, by) in buffer_ring:
+        if 0 <= bx < WORLD_W and 0 <= by < WORLD_H and farm[by][bx]["state"] in ("tree", "rock"):
+            farm[by][bx]["state"] = "grass"
+            farm[by][bx]["tree_variant"] = None
+
+    img, ox, oy, w_tiles, h_tiles = _build_water_shape(stamped_tiles)
+    water_shapes.append({"surface": _pil_to_pygame(img), "x": ox, "y": oy, "w": w_tiles, "h": h_tiles,
+                          "tiles": stamped_set})
+    spawn_fish_for(water_shapes[-1])
+    return len(stamped_tiles)
+
+
+def spawn_monk_temple_near(cx, cy):
+    global monk_temple
+    for _ in range(60):
+        ox = cx + random.randint(-6, 6)
+        oy = cy + random.randint(-6, 6)
+        footprint = {(ox, oy), (ox + 1, oy)}
+        if any(not (0 <= fx < WORLD_W and 0 <= fy < WORLD_H) for (fx, fy) in footprint):
+            continue
+        if _full_footprint(footprint) & FARM_BLOCKED_TILES:
+            continue
+        if any(farm[fy][fx]["state"] != "grass" for (fx, fy) in footprint):
+            continue
+        for (fx, fy) in footprint:
+            farm[fy][fx]["state"] = "monk_temple"
+        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        monk_temple = {"x": ox, "y": oy, "looted": False}
+        return
+
+
+def populate_island(cx, cy, radius, kind):
+    """Overwrites every land tile within the island's own noise-perturbed
+    radius to the tropical biome (sandy ground, palms, seashell/coconut
+    decor), then adds that island's feature: a tribal village, the monk
+    temple, or — for a plain scenic island — nothing but palms."""
+    island_tiles = []
+    for dy in range(-radius - 2, radius + 3):
+        for dx in range(-radius - 2, radius + 3):
+            x, y = cx + dx, cy + dy
+            if not (0 <= x < WORLD_W and 0 <= y < WORLD_H):
+                continue
+            if farm[y][x]["state"] != "grass":
+                continue
+            r = math.hypot(dx, dy)
+            wiggle = _smooth_noise(x + 1000, y + 1000, cell=2.6) - 0.5
+            if r + wiggle * radius * 0.6 > radius:
+                continue
+            farm[y][x]["biome"] = "tropical"
+            farm[y][x]["ground_variant"] = BIOME_GROUND_INDICES["tropical"][
+                region_variant(x, y) % len(BIOME_GROUND_INDICES["tropical"])]
+            farm[y][x]["decor"] = random.choice(BIOME_DECOR_IMAGES["tropical"]) if random.random() < DECOR_CHANCE else None
+            MAP_SURFACE.set_at((x, y), MAP_BIOME_COLORS["tropical"])
+            island_tiles.append((x, y))
+
+    random.shuffle(island_tiles)
+    tree_count = max(3, len(island_tiles) // 5)
+    placed = 0
+    for (x, y) in island_tiles:
+        if placed >= tree_count:
+            break
+        if (x, y) in FARM_BLOCKED_TILES or farm[y][x]["state"] != "grass":
+            continue
+        farm[y][x]["state"] = "tree"
+        farm[y][x]["tree_variant"] = BIOME_TREE_INDICES["tropical"][0]
+        farm[y][x]["tree_shape"] = random.randrange(TREE_SHAPE_VARIANTS)
+        farm[y][x]["decor"] = None
+        FARM_BLOCKED_TILES.update(_full_footprint({(x, y)}))
+        placed += 1
+
+    if kind == "tribal":
+        spawn_flavor_house_near(cx, cy, "tribal")
+        for _ in range(random.randint(5, 8)):
+            spawn_villager_near(cx, cy)
+    elif kind == "monk_temple":
+        spawn_monk_temple_near(cx, cy)
+
+
+def generate_archipelago():
+    ocean_cx = MAINLAND_W + (WORLD_W - MAINLAND_W) // 2
+    ocean_cy = WORLD_H // 2
+    ocean_target_size = 13000
+    ocean_max_r = int(math.sqrt(ocean_target_size / math.pi) + 2)
+
+    num_islands = 6
+    island_specs = []
+    for i in range(num_islands):
+        angle = (i / num_islands) * 2 * math.pi + random.uniform(-0.2, 0.2)
+        dist = random.uniform(35, min(68, ocean_max_r - 12))
+        ix = int(ocean_cx + math.cos(angle) * dist)
+        iy = int(ocean_cy + math.sin(angle) * dist * 0.85)
+        ix = max(MAINLAND_W + 12, min(WORLD_W - 12, ix))
+        iy = max(12, min(WORLD_H - 12, iy))
+        island_specs.append((ix, iy, random.randint(9, 14)))
+
+    generate_ocean_with_islands(ocean_cx, ocean_cy, ocean_target_size, island_specs)
+
+    kinds = ["tribal", "tribal", "monk_temple"] + ["plain"] * (num_islands - 3)
+    random.shuffle(kinds)
+    for (ix, iy, irad), kind in zip(island_specs, kinds):
+        populate_island(ix, iy, irad, kind)
+        spawn_dock_near(ix, iy, search_radius=irad + 6)
+
+    # A gateway dock on the mainland's own shore, just west of the ocean,
+    # so there's always a boat within reach without having to swim for one.
+    gateway_x = ocean_cx - ocean_max_r + 10
+    spawn_dock_near(gateway_x, ocean_cy, search_radius=25)
+
+
+#Every big lake gets its own dock + rowboat close by, same as a town's
+#waterfront — spawn_dock_near is only defined by this point in the file,
+#which is why this couldn't happen back where the lakes themselves were placed.
+for (lake_x, lake_y) in big_lake_centers:
+    spawn_dock_near(lake_x, lake_y, search_radius=16)
+
+generate_archipelago()
 
 
 #Settlement counts scaled ~2.5x for the larger world, except kingdoms —
@@ -2305,7 +2939,7 @@ ruins = []
 
 def spawn_ruin():
     for _ in range(300):
-        x = random.randint(2, WORLD_W - 4)
+        x = random.randint(2, MAINLAND_W - 4)
         y = random.randint(2, WORLD_H - 3)
         if biome_for(x, y) != "desert":
             continue
@@ -2397,20 +3031,23 @@ current_ruin_id = None  # which ruin's underworld the player is currently inside
 
 #Camera based on level
 def update_camera_view():
-    global view_width, view_height, player_visual_x, player_visual_y
+    global view_width, view_height, player_visual_x, player_visual_y, player_glide_elapsed
     world_w = WORLD_W if location == "farm" else UNDERWORLD_W
     world_h = WORLD_H if location == "farm" else UNDERWORLD_H
     # 10 + (level-1)*2, max WORLD size
     view_width = min(10 + (level-1)*2, world_w)
     view_height = min(10 + (level-1)*2, world_h)
 
-    # Ease the player's on-screen position toward their real tile position
-    # (framerate independent), then point the camera at that same eased
-    # value so the player glides tile-to-tile and the world scrolls with
-    # it in lockstep, rather than the player popping a full tile instantly.
-    ease = 1 - math.exp(-PLAYER_GLIDE_SMOOTH_SPEED * dt)
-    player_visual_x += (player_x - player_visual_x) * ease
-    player_visual_y += (player_y - player_visual_y) * ease
+    # Tween the player's on-screen position from wherever the glide started
+    # toward their real tile position, over a fixed duration, then point
+    # the camera at that same tweened value — so the player visually
+    # glides tile-to-tile and the world scrolls with it in lockstep,
+    # rather than the player popping a full tile instantly.
+    move_duration = HORSE_MOVE_DURATION if (mounted and location == "farm") else PLAYER_MOVE_DURATION
+    player_glide_elapsed = min(move_duration, player_glide_elapsed + dt)
+    t = _smoothstep(player_glide_elapsed / move_duration) if move_duration > 0 else 1.0
+    player_visual_x = player_glide_from_x + (player_x - player_glide_from_x) * t
+    player_visual_y = player_glide_from_y + (player_y - player_glide_from_y) * t
 
     cam_x = max(0, min(player_visual_x - view_width/2, world_w - view_width))
     cam_y = max(0, min(player_visual_y - view_height/2, world_h - view_height))
@@ -2418,19 +3055,25 @@ def update_camera_view():
 
 #Movement: handles farm/house/underworld bounds, walls, and door/ruin enter/exit
 def try_move(dx, dy):
-    global player_x, player_y, interior_player_x, interior_player_y, location, player_visual_x, player_visual_y
+    global player_x, player_y, interior_player_x, interior_player_y, location, player_visual_x, player_visual_y, sailing
 
     if location == "farm":
         nx = max(0, min(WORLD_W - 1, player_x + dx))
         ny = max(0, min(WORLD_H - 1, player_y + dy))
         tile_state = farm[ny][nx]["state"]
-        if (nx, ny) in HOUSE_TILES or tile_state in ("tree", "market", "stable", "ruin", "well", "shrine", "water", "smithy", "shack", "rock", "building", "wall", "flavor_house"):
+        blocked_states = ("tree", "market", "stable", "ruin", "well", "shrine", "smithy", "shack", "rock",
+                           "building", "wall", "flavor_house", "tavern", "carriage", "town_site", "monk_temple")
+        if not sailing:
+            blocked_states = blocked_states + ("water",)
+        if (nx, ny) in HOUSE_TILES or tile_state in blocked_states:
             return False  # solid house wall, tree, market stall, stable, ruin, kingdom wall, etc.
         if tile_state == "gate" and not kingdoms[farm[ny][nx]["kingdom_id"]]["paid"]:
             return False  # kingdom gate — blocked until its toll is paid
 
         moved = (nx, ny) != (player_x, player_y)
         player_x, player_y = nx, ny
+        if sailing and tile_state != "water":
+            sailing = False  # stepped onto land — the boat trip ends here
         return moved
 
     elif location == "underworld":
@@ -2461,13 +3104,48 @@ def try_move(dx, dy):
 
 def move_player(dx, dy):
     """Wraps try_move so a rented horse covers HORSE_SPEED_MULT tiles per
-    keypress instead of one, stopping early if a step is blocked."""
+    keypress instead of one, stopping early if a step is blocked. Captures
+    the glide's current on-screen position as its new starting point before
+    stepping, so a multi-tile horse move animates as one smooth tween
+    across the whole distance instead of restarting per sub-tile."""
+    global player_glide_from_x, player_glide_from_y, player_glide_elapsed, footprint_toggle
+    start_x, start_y = player_visual_x, player_visual_y
     moved_any = False
     steps = HORSE_SPEED_MULT if (mounted and location == "farm") else 1
     for _ in range(steps):
         if not try_move(dx, dy):
             break
         moved_any = True
+    if moved_any:
+        player_glide_from_x, player_glide_from_y = start_x, start_y
+        player_glide_elapsed = 0.0
+        # Footprints along the whole path just walked (not just one at the
+        # start), spaced FOOTPRINT_SPACING tiles apart — on foot only, a
+        # horse leaves no human footprints and a boat leaves none at all —
+        # alternating left/right of the direction of travel for a natural
+        # staggered trail.
+        if location == "farm" and not mounted and not sailing:
+            end_x, end_y = float(player_x), float(player_y)
+            path_dist = math.hypot(end_x - start_x, end_y - start_y)
+            perp_x, perp_y = -dy, dx
+            n_prints = max(1, round(path_dist / FOOTPRINT_SPACING))
+            for i in range(1, n_prints + 1):
+                t = i / n_prints
+                fx = start_x + (end_x - start_x) * t
+                fy = start_y + (end_y - start_y) * t
+                # Only on bare ground — skip gravel/stone/sand/brick roads
+                # (or any other special ground_static texture, like the
+                # house's dirt path) since walking on a paved surface
+                # shouldn't leave a dirt footprint behind.
+                gx, gy = int(round(fx)), int(round(fy))
+                if not (0 <= gx < WORLD_W and 0 <= gy < WORLD_H) or farm[gy][gx]["ground_static"] is not None:
+                    continue
+                footprint_toggle = not footprint_toggle
+                side = FOOTPRINT_SIDE_OFFSET if footprint_toggle else -FOOTPRINT_SIDE_OFFSET
+                footprints.append({
+                    "x": fx + perp_x * side, "y": fy + perp_y * side,
+                    "life": 0.0, "max_life": FOOTPRINT_LIFETIME,
+                })
     return moved_any
 
 #Main Game Loop
@@ -2509,15 +3187,25 @@ while running:
         dist_to_player = math.hypot(adx, ady)
         if location == "farm" and 0.01 < dist_to_player < 1.8 and animal["state"] != "fleeing":
             flee_dist = 3.0
-            animal["target_x"] = max(0, min(WORLD_W - 1, animal["x"] + adx / dist_to_player * flee_dist))
-            animal["target_y"] = max(0, min(WORLD_H - 1, animal["y"] + ady / dist_to_player * flee_dist))
-            animal["state"] = "fleeing"
+            tx = max(0, min(WORLD_W - 1, animal["x"] + adx / dist_to_player * flee_dist))
+            ty = max(0, min(WORLD_H - 1, animal["y"] + ady / dist_to_player * flee_dist))
+            # Only flee onto dry land — otherwise a rabbit cornered against
+            # a lake would just skitter straight out onto the water.
+            if farm[int(ty)][int(tx)]["state"] == "grass" and _land_path_clear(animal["x"], animal["y"], tx, ty):
+                animal["target_x"], animal["target_y"] = tx, ty
+                animal["state"] = "fleeing"
 
         if animal["state"] == "idle":
             animal["timer"] -= dt
             if animal["timer"] <= 0:
-                animal["target_x"] = max(0, min(WORLD_W - 1, animal["x"] + random.uniform(-2.5, 2.5)))
-                animal["target_y"] = max(0, min(WORLD_H - 1, animal["y"] + random.uniform(-2.5, 2.5)))
+                for _ in range(8):
+                    tx = max(0, min(WORLD_W - 1, animal["x"] + random.uniform(-2.5, 2.5)))
+                    ty = max(0, min(WORLD_H - 1, animal["y"] + random.uniform(-2.5, 2.5)))
+                    if farm[int(ty)][int(tx)]["state"] == "grass" and _land_path_clear(animal["x"], animal["y"], tx, ty):
+                        animal["target_x"], animal["target_y"] = tx, ty
+                        break
+                else:
+                    animal["target_x"], animal["target_y"] = animal["x"], animal["y"]
                 animal["state"] = "moving"
 
         if animal["state"] in ("moving", "fleeing"):
@@ -2557,6 +3245,48 @@ while running:
                 else:
                     f["state"] = "idle"
                     f["timer"] = random.uniform(1.0, 3.0)
+
+    #Falling leaves: ambient particles shed by deciduous trees (spawned in
+    #the tree render pass), drifting down with a light side-to-side wobble
+    #until they fade out.
+    if location == "farm":
+        for leaf in falling_leaves:
+            leaf["life"] += dt
+            wobble = math.sin(pygame.time.get_ticks() * 0.004 + leaf["phase"]) * 0.15
+            leaf["x"] += (leaf["vx"] + wobble) * dt
+            leaf["y"] += leaf["vy"] * dt
+        falling_leaves[:] = [leaf for leaf in falling_leaves if leaf["life"] < leaf["max_life"]]
+
+    #Footprints: just fade out over time, no drift
+    if location == "farm":
+        for fp in footprints:
+            fp["life"] += dt
+        footprints[:] = [fp for fp in footprints if fp["life"] < fp["max_life"]]
+
+    #Region banners: a Skyrim-style name card pops up the moment the player
+    #steps into a named kingdom or town, and only on that transition — not
+    #every frame spent inside — so each settlement reads as its own place
+    #instead of an anonymous cluster of buildings.
+    if location == "farm":
+        region_here = None
+        region_here_name = ""
+        region_here_epithet = ""
+        for ki, k in enumerate(kingdoms):
+            if k["x0"] <= player_x < k["x0"] + k["w"] and k["y0"] <= player_y < k["y0"] + k["h"]:
+                region_here = ("kingdom", ki)
+                region_here_name, region_here_epithet = k["name"], k["epithet"]
+                break
+        if region_here is None:
+            for ti, t in enumerate(towns):
+                if math.hypot(player_x - t["x"], player_y - t["y"]) <= TOWN_REGION_RADIUS:
+                    region_here = ("town", ti)
+                    region_here_name, region_here_epithet = t["name"], t["epithet"]
+                    break
+        if region_here != current_region_key:
+            current_region_key = region_here
+            if region_here is not None:
+                region_banner_name, region_banner_epithet = region_here_name, region_here_epithet
+                region_banner_timer = 4.0
 
     #Demons: idle/wander like the peaceful animals, but drift toward the
     #player when close instead of fleeing — a sense of danger even though
@@ -2717,8 +3447,27 @@ while running:
         if not villager["wandering"]:
             villager["timer"] -= dt
             if villager["timer"] <= 0:
-                villager["target_x"] = max(0, min(WORLD_W - 1, villager["home_x"] + random.uniform(-4, 4)))
-                villager["target_y"] = max(0, min(WORLD_H - 1, villager["home_y"] + random.uniform(-4, 4)))
+                # Retry a few times for a candidate that's actually dry land —
+                # a village/town built near its own pond means a plain random
+                # offset can easily land in the water, and villagers had no
+                # terrain check at all, so they'd just wander out onto lakes.
+                for _ in range(8):
+                    tx = max(0, min(WORLD_W - 1, villager["home_x"] + random.uniform(-4, 4)))
+                    ty = max(0, min(WORLD_H - 1, villager["home_y"] + random.uniform(-4, 4)))
+                    if farm[int(ty)][int(tx)]["state"] == "grass" and _land_path_clear(villager["x"], villager["y"], tx, ty):
+                        villager["target_x"], villager["target_y"] = tx, ty
+                        break
+                else:
+                    # Even the fallback needs a clear path — home itself is
+                    # always dry land, but the straight line back to it
+                    # isn't guaranteed to be if the villager's current spot
+                    # is across some water from home. Stay put rather than
+                    # wade through it; the timer just retries shortly after.
+                    hx, hy = villager["home_x"], villager["home_y"]
+                    if _land_path_clear(villager["x"], villager["y"], hx, hy):
+                        villager["target_x"], villager["target_y"] = hx, hy
+                    else:
+                        villager["target_x"], villager["target_y"] = villager["x"], villager["y"]
                 villager["wandering"] = True
         else:
             vdx = villager["target_x"] - villager["x"]
@@ -3134,7 +3883,7 @@ while running:
 
             # Renting/returning a horse at a stable (facing it and press E)
             if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
-                if event.key == pygame.K_e:
+                if event.key == pygame.K_e and not sailing:
                     fdx, fdy = FACING_DELTA[player_facing]
                     fx, fy = player_x + fdx, player_y + fdy
                     if 0 <= fx < WORLD_W and 0 <= fy < WORLD_H and farm[fy][fx]["stable_id"] is not None:
@@ -3148,6 +3897,34 @@ while running:
                         else:
                             market_message = "Not enough emeralds to rent a horse!"
                         market_message_timer = 2.5
+
+            # Boarding a boat at a dock (facing it, press E) — once aboard,
+            # water tiles become passable; stepping onto any non-water
+            # tile automatically ends the trip (see try_move).
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e and not mounted and not sailing:
+                    fdx, fdy = FACING_DELTA[player_facing]
+                    fx, fy = player_x + fdx, player_y + fdy
+                    if any(int(round(b["x"])) == fx and int(round(b["y"])) == fy for b in boats):
+                        sailing = True
+                        market_message, market_message_timer = "Setting sail!", 2.0
+
+            # The monk temple's one-time blessing (facing it, press E) —
+            # rare gear and fruit, but only once.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e and monk_temple is not None:
+                    fdx, fdy = FACING_DELTA[player_facing]
+                    fx, fy = player_x + fdx, player_y + fdy
+                    if 0 <= fx < WORLD_W and 0 <= fy < WORLD_H and farm[fy][fx]["state"] == "monk_temple":
+                        if monk_temple["looted"]:
+                            market_message = "The temple is silent now — its blessing already given."
+                        else:
+                            monk_temple["looted"] = True
+                            pick_tool["level"] += 1
+                            sword_tool["level"] += 1
+                            emeralds += 150
+                            market_message = "The monks bless you with sacred fruit and honed gear! Pick +1, Sword +1, +150 emeralds!"
+                        market_message_timer = 3.5
 
             # Paying a kingdom's gate toll (facing it, press E) — a one-time
             # payment; once paid the gate stays open for the rest of the game.
@@ -3323,6 +4100,7 @@ while running:
                             t["soil_variant"] = random.randrange(len(SOIL_IMAGES))
                             t["stage_anim"] = 0.0
                             seed_inventory[selected_seed]-=1
+                            active_crop_tiles.add((px, py))
 
 
                 # Harvest
@@ -3334,6 +4112,7 @@ while running:
                         tile["timer"]=0.0
                         tile["seed"]=None
                         tile["soil_variant"]=None
+                        active_crop_tiles.discard((player_x, player_y))
 
                     elif tile["state"]=="grown":
                         harvested_seed = tile["seed"]
@@ -3366,17 +4145,20 @@ while running:
                             tile["soil_variant"]=random.randrange(len(SOIL_IMAGES))
                             tile["stage_anim"]=0.0
                             seed_inventory[harvested_seed]-=1
+                            active_crop_tiles.add((player_x, player_y))
                         elif orchard_replant:
                             tile["state"]="planted"
                             tile["timer"]=0.0
                             tile["seed"]=harvested_seed
                             tile["soil_variant"]=random.randrange(len(SOIL_IMAGES))
                             tile["stage_anim"]=0.0
+                            active_crop_tiles.add((player_x, player_y))
                         else:
                             tile["state"]="grass"
                             tile["timer"]=0.0
                             tile["seed"]=None
                             tile["soil_variant"]=None
+                            active_crop_tiles.discard((player_x, player_y))
 
                         #Farming skill: a slower, parallel XP track fed by the
                         #same harvests, unlocking passive farm-wide bonuses
@@ -3399,9 +4181,20 @@ while running:
                                 if level==4:
                                     reward_options=["Unlock Hoe","Skip"] if not hoe_tool else ["Upgrade Pickaxe","Upgrade Hoe"]
                                 else:
-                                    rewards=lvl_data.get("reward",[])
-                                    if len(rewards)==2: reward_options=rewards
-                                    elif len(rewards)==1: reward_options=[rewards[0],"Skip"]
+                                    # lvl_data["reward"] is None for levels with no reward and can
+                                    # be more than 2 items (e.g. level 9's three-item list) — the
+                                    # choice screen only ever shows 2 options, so anything beyond
+                                    # the first 2 is granted immediately rather than silently lost
+                                    # (and 0/1-item lists still need exactly 2 options to display).
+                                    rewards=lvl_data.get("reward") or []
+                                    if len(rewards)>=2:
+                                        reward_options=rewards[:2]
+                                        for extra_reward in rewards[2:]:
+                                            apply_reward(extra_reward)
+                                    elif len(rewards)==1:
+                                        reward_options=[rewards[0],"Skip"]
+                                    else:
+                                        reward_options=["Skip","Skip"]
                                 level_up_pending=True
                                 level_up_message=f"Level {level} reached!"
 
@@ -3447,8 +4240,9 @@ while running:
 
         if held_dx is not None:
             move_repeat_timer += dt
-            if move_repeat_timer >= MOVE_REPEAT_DELAY:
-                move_repeat_timer -= MOVE_REPEAT_DELAY
+            repeat_delay = HORSE_MOVE_REPEAT_DELAY if (mounted and location == "farm") else MOVE_REPEAT_DELAY
+            if move_repeat_timer >= repeat_delay:
+                move_repeat_timer -= repeat_delay
                 player_facing = held_facing
                 player_is_walking = move_player(held_dx, held_dy)
                 player_walk_timer = 0.0
@@ -3484,32 +4278,38 @@ while running:
     #Growth update: planted -> sprout -> growing -> grown -> withered.
     #Growth speed is modulated per-tile by growth_rate_at() (farming skill
     #bonus, winter slowdown, nearby Well/Greenhouse) instead of a flat dt.
-    for y, row in enumerate(farm):
-        for x, tile in enumerate(row):
-            state = tile["state"]
-            if state == "grass":
-                continue
+    #Only visits active_crop_tiles (kept in sync at every planting/harvest/
+    #wither transition) instead of scanning the entire WORLD_W x WORLD_H
+    #grid every frame — with the map size added this session, that full
+    #scan was ~150,000 tile checks/frame (measured ~6ms/frame) even though
+    #the overwhelming majority are permanently bare grass.
+    for (x, y) in list(active_crop_tiles):
+        tile = farm[y][x]
+        state = tile["state"]
+        if state == "grass":
+            active_crop_tiles.discard((x, y))  # self-healing if a tile ever left this set out of sync
+            continue
 
-            tile["stage_anim"] += dt
+        tile["stage_anim"] += dt
 
-            if state in ("planted", "sprout", "growing", "grown"):
-                tile["timer"] += dt * growth_rate_at(x, y)
-                seed = SEEDS[tile["seed"]]
-                grow_time = seed["grow_time"]
-                wither_time = seed.get("wither_time", grow_time * 2)
+        if state in ("planted", "sprout", "growing", "grown"):
+            tile["timer"] += dt * growth_rate_at(x, y)
+            seed = SEEDS[tile["seed"]]
+            grow_time = seed["grow_time"]
+            wither_time = seed.get("wither_time", grow_time * 2)
 
-                if state == "planted" and tile["timer"] >= grow_time * 0.25:
-                    tile["state"] = "sprout"
-                    tile["stage_anim"] = 0.0
-                elif state == "sprout" and tile["timer"] >= grow_time * 0.5:
-                    tile["state"] = "growing"
-                    tile["stage_anim"] = 0.0
-                elif state == "growing" and tile["timer"] >= grow_time:
-                    tile["state"] = "grown"
-                    tile["stage_anim"] = 0.0
-                elif state == "grown" and tile["timer"] >= grow_time + wither_time:
-                    tile["state"] = "withered"
-                    tile["stage_anim"] = 0.0
+            if state == "planted" and tile["timer"] >= grow_time * 0.25:
+                tile["state"] = "sprout"
+                tile["stage_anim"] = 0.0
+            elif state == "sprout" and tile["timer"] >= grow_time * 0.5:
+                tile["state"] = "growing"
+                tile["stage_anim"] = 0.0
+            elif state == "growing" and tile["timer"] >= grow_time:
+                tile["state"] = "grown"
+                tile["stage_anim"] = 0.0
+            elif state == "grown" and tile["timer"] >= grow_time + wither_time:
+                tile["state"] = "withered"
+                tile["stage_anim"] = 0.0
 
     #Player walk animation
     if player_is_walking:
@@ -3584,11 +4384,32 @@ while running:
 
                 # --- Tree: sprite is 2 tiles wide x 2 tiles tall (wide canopies
                 # need the extra width so they don't clip), centered and
-                # bottom-anchored over this tile's 1-tile collision footprint ---
+                # bottom-anchored over this tile's 1-tile collision footprint.
+                # Drawn as two pieces (trunk, canopy) so wind can sway just the
+                # canopy every frame while the trunk stays planted in the
+                # ground — a single whole-sprite shift would look like the
+                # whole tree sliding sideways instead of flexing. ---
                 if tile["tree_variant"] is not None:
-                    tree_img = TREE_IMAGES[tile["tree_variant"]]
-                    tree_scaled = pygame.transform.scale(tree_img, (tile_draw_size * 2, tile_draw_size * 2))
-                    screen.blit(tree_scaled, (draw_x - tile_draw_size // 2, draw_y - tile_draw_size))
+                    tv, ts = tile["tree_variant"], tile["tree_shape"]
+                    tree_sway = math.sin(current_ticks * 0.0016 + (x * 17 + y * 11)) * (tile_draw_size * 0.06)
+                    tree_w = tile_draw_size * 2
+                    tree_h = tile_draw_size * 2
+                    trunk_h_px = int(tree_h * TREE_TRUNK_ZONE_FRAC)
+                    canopy_h_px = tree_h - trunk_h_px
+                    trunk_scaled = pygame.transform.scale(TREE_TRUNK_IMAGES[tv][ts], (tree_w, trunk_h_px))
+                    canopy_scaled = pygame.transform.scale(TREE_CANOPY_IMAGES[tv][ts], (tree_w, canopy_h_px))
+                    tree_base_x = draw_x - tile_draw_size // 2
+                    tree_top_y = draw_y - tile_draw_size
+                    screen.blit(trunk_scaled, (tree_base_x, tree_top_y + canopy_h_px))
+                    screen.blit(canopy_scaled, (tree_base_x + tree_sway, tree_top_y))
+
+                    if tv in DECIDUOUS_TREE_INDICES and random.random() < LEAF_SPAWN_CHANCE:
+                        falling_leaves.append({
+                            "x": x + 0.5 + random.uniform(-0.25, 0.25), "y": y - 0.9 + random.uniform(-0.15, 0.15),
+                            "vx": random.uniform(-0.12, 0.12), "vy": random.uniform(0.35, 0.6),
+                            "life": 0.0, "max_life": random.uniform(2.5, 4.0),
+                            "color": TREE_LEAF_COLORS[tv], "phase": random.uniform(0, 6.28),
+                        })
 
                 # --- Mineable boulder: flush 1-tile sprite, no overhang ---
                 if tile["state"] == "rock":
@@ -3621,6 +4442,24 @@ while running:
                     offset_x = draw_x + (tile_draw_size - size) // 2 + sway
                     offset_y = draw_y + (tile_draw_size - size)
                     screen.blit(crop_scaled, (offset_x, offset_y))
+
+        #Footprints: faint fading marks left behind on foot — drawn right on
+        #the ground, before anything else (trees, buildings, entities) so
+        #they never sit on top of anything.
+        for fp in footprints:
+            if fp["x"] < cam_x_i - 1 or fp["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if fp["y"] < cam_y_i - 1 or fp["y"] > cam_y_i + visible_rows + 1:
+                continue
+            t = fp["life"] / fp["max_life"]
+            alpha = max(0, int(FOOTPRINT_MAX_ALPHA * (1 - t)))
+            fp_w = max(2, int(tile_draw_size * 0.22))
+            fp_h = max(2, int(tile_draw_size * 0.13))
+            fp_surf = pygame.Surface((fp_w, fp_h), pygame.SRCALPHA)
+            pygame.draw.ellipse(fp_surf, (40, 32, 24, alpha), (0, 0, fp_w, fp_h))
+            fp_draw_x = (fp["x"] - cam_x) * tile_draw_size + (tile_draw_size - fp_w) // 2
+            fp_draw_y = (fp["y"] - cam_y) * tile_draw_size + (tile_draw_size - fp_h) // 2
+            screen.blit(fp_surf, (fp_draw_x, fp_draw_y))
 
         #Lakes/ponds: one precomputed smooth-shore image per water body,
         #drawn on top of the grass already rendered underneath it, instead
@@ -3659,6 +4498,22 @@ while running:
             fish_scaled = pygame.transform.scale(sprite, (fish_size, fish_size))
             screen.blit(fish_scaled, (f_draw_x + (tile_draw_size - fish_size) // 2,
                                        f_draw_y + (tile_draw_size - fish_size) // 2 - bob))
+
+        #Falling leaves: small fading dots drifting down from deciduous
+        #trees, colored to match that tree's canopy
+        for leaf in falling_leaves:
+            if leaf["x"] < cam_x_i - 1 or leaf["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if leaf["y"] < cam_y_i - 1 or leaf["y"] > cam_y_i + visible_rows + 1:
+                continue
+            leaf_t = leaf["life"] / leaf["max_life"]
+            leaf_alpha = 255 if leaf_t < 0.7 else max(0, int(255 * (1 - leaf_t) / 0.3))
+            leaf_size = max(2, int(tile_draw_size * 0.1))
+            leaf_surf = pygame.Surface((leaf_size, leaf_size), pygame.SRCALPHA)
+            pygame.draw.ellipse(leaf_surf, (*leaf["color"], leaf_alpha), (0, 0, leaf_size, leaf_size))
+            leaf_draw_x = (leaf["x"] - cam_x) * tile_draw_size
+            leaf_draw_y = (leaf["y"] - cam_y) * tile_draw_size
+            screen.blit(leaf_surf, (leaf_draw_x, leaf_draw_y))
 
         # --- House exterior: sprite is 2 tiles tall, anchored so its bottom
         # edge sits on the bottom of its 1-tile solid footprint (the roof
@@ -3718,6 +4573,72 @@ while running:
             sh_scaled = pygame.transform.scale(IMG_FISHERMAN_SHACK, (tile_draw_size * 2, tile_draw_size * 2))
             screen.blit(sh_scaled, (sh_dx, sh_dy))
 
+        #Taverns: same 2x2 bottom-anchored pattern
+        for tavern in taverns:
+            tv_dx = (tavern["x"] - cam_x) * tile_draw_size
+            tv_dy = (tavern["y"] - cam_y) * tile_draw_size - tile_draw_size
+            tv_scaled = pygame.transform.scale(IMG_TAVERN, (tile_draw_size * 2, tile_draw_size * 2))
+            screen.blit(tv_scaled, (tv_dx, tv_dy))
+
+        #Town construction-site clutter: purely decorative, same 2x2
+        #bottom-anchored pattern as a real in-progress building
+        for site in town_construction_sites:
+            ts_dx = (site["x"] - cam_x) * tile_draw_size
+            ts_dy = (site["y"] - cam_y) * tile_draw_size - tile_draw_size
+            ts_scaled = pygame.transform.scale(IMG_CONSTRUCTION_SITE, (tile_draw_size * 2, tile_draw_size * 2))
+            screen.blit(ts_scaled, (ts_dx, ts_dy))
+
+        #Parked carriages: flush on the ground, 2 tiles wide x 1 tall
+        for carriage in decor_carriages:
+            cg_dx = (carriage["x"] - cam_x) * tile_draw_size
+            cg_dy = (carriage["y"] - cam_y) * tile_draw_size
+            cg_scaled = pygame.transform.scale(IMG_CARRIAGE, (tile_draw_size * 2, tile_draw_size))
+            screen.blit(cg_scaled, (cg_dx, cg_dy))
+
+        #Decorative standing horses: flush, single tile
+        for horse in decor_horses:
+            dh_dx = (horse["x"] - cam_x) * tile_draw_size
+            dh_dy = (horse["y"] - cam_y) * tile_draw_size
+            dh_sprite = pygame.transform.flip(HORSE_FRAMES[0], True, False) if horse["flip"] else HORSE_FRAMES[0]
+            dh_scaled = pygame.transform.scale(dh_sprite, (tile_draw_size, tile_draw_size))
+            screen.blit(dh_scaled, (dh_dx, dh_dy))
+
+        #Docks: 1 wide x 2 tall, bottom-anchored toward the shore tile by
+        #default ("up"; water is above), rotated for the other 3 approach
+        #directions found near water.
+        for dock in docks:
+            if dock["dir"] in ("up", "down"):
+                dock_w, dock_h = tile_draw_size, tile_draw_size * 2
+            else:
+                dock_w, dock_h = tile_draw_size * 2, tile_draw_size
+            if dock["dir"] == "up":
+                sprite = IMG_DOCK
+                dk_dx = (dock["x"] - cam_x) * tile_draw_size
+                dk_dy = (dock["y"] - cam_y) * tile_draw_size - tile_draw_size
+            elif dock["dir"] == "down":
+                sprite = pygame.transform.rotate(IMG_DOCK, 180)
+                dk_dx = (dock["x"] - cam_x) * tile_draw_size
+                dk_dy = (dock["y"] - cam_y) * tile_draw_size
+            elif dock["dir"] == "left":
+                sprite = pygame.transform.rotate(IMG_DOCK, 90)
+                dk_dx = (dock["x"] - cam_x) * tile_draw_size - tile_draw_size
+                dk_dy = (dock["y"] - cam_y) * tile_draw_size
+            else:  # right
+                sprite = pygame.transform.rotate(IMG_DOCK, -90)
+                dk_dx = (dock["x"] - cam_x) * tile_draw_size
+                dk_dy = (dock["y"] - cam_y) * tile_draw_size
+            dk_scaled = pygame.transform.scale(sprite, (dock_w, dock_h))
+            screen.blit(dk_scaled, (dk_dx, dk_dy))
+
+        #Boats: float just past the dock, on top of the water surface, with
+        #a gentle bob
+        for boat in boats:
+            bt_dx = (boat["x"] - cam_x) * tile_draw_size
+            bt_dy = (boat["y"] - cam_y) * tile_draw_size
+            bt_bob = math.sin(current_ticks * 0.0016 + boat["bob_phase"]) * tile_draw_size * 0.06
+            bt_scaled = pygame.transform.scale(IMG_BOAT, (tile_draw_size, tile_draw_size))
+            screen.blit(bt_scaled, (bt_dx, bt_dy + bt_bob))
+
         #Biome-flavor village centerpieces (pagoda/adobe/snow-cabin): same
         #2x2 bottom-anchored pattern
         for fb in flavor_buildings:
@@ -3725,6 +4646,14 @@ while running:
             fb_dy = (fb["y"] - cam_y) * tile_draw_size - tile_draw_size
             fb_scaled = pygame.transform.scale(FLAVOR_HOUSE_IMAGES[fb["flavor"]], (tile_draw_size * 2, tile_draw_size * 2))
             screen.blit(fb_scaled, (fb_dx, fb_dy))
+
+        #Monk temple: the archipelago's one-off rare landmark, same 2x2
+        #bottom-anchored pattern
+        if monk_temple is not None:
+            mt_dx = (monk_temple["x"] - cam_x) * tile_draw_size
+            mt_dy = (monk_temple["y"] - cam_y) * tile_draw_size - tile_draw_size
+            mt_scaled = pygame.transform.scale(IMG_MONK_TEMPLE, (tile_draw_size * 2, tile_draw_size * 2))
+            screen.blit(mt_scaled, (mt_dx, mt_dy))
 
         #Kingdom gates: drawn once per kingdom, spanning both of its gate
         #tiles (the wall segments themselves are drawn per-tile above)
@@ -3762,7 +4691,19 @@ while running:
         #as tiles. Idle NPCs get the same subtle 1–2px breathing bob as the
         #player, on individually-phased sine waves so they don't all rise/fall
         #in lockstep like a chorus line.
+        #Visibility culling for the entity lists below: with settlements now
+        #scattered across a much bigger world, most villagers/animals/NPCs
+        #at any moment are nowhere near the camera — scaling and blitting
+        #every one of them regardless was the single biggest source of
+        #per-frame cost (profiling showed ~1500+ pygame.transform.scale
+        #calls/frame), and only grows worse as more world content is added.
+        def _on_screen(ex, ey):
+            return (cam_x_i - 1 <= ex <= cam_x_i + visible_cols + 1
+                    and cam_y_i - 1 <= ey <= cam_y_i + visible_rows + 1)
+
         for npc in npcs:
+            if not _on_screen(npc["x"], npc["y"]):
+                continue
             npc_draw_x = (npc["x"] - cam_x) * tile_draw_size
             npc_draw_y = (npc["y"] - cam_y) * tile_draw_size
             npc_sprite = npc["frames"][npc["facing"]][npc["frame_index"]]
@@ -3774,6 +4715,8 @@ while running:
 
         #Villagers: same rendering approach as NPCs, same breathing bob
         for villager in villagers:
+            if not _on_screen(villager["x"], villager["y"]):
+                continue
             v_draw_x = (villager["x"] - cam_x) * tile_draw_size
             v_draw_y = (villager["y"] - cam_y) * tile_draw_size
             v_sprite = villager["frames"][villager["facing"]][villager["frame_index"]]
@@ -3785,6 +4728,8 @@ while running:
 
         #Peaceful animals: a small hop/bob while moving, flipped to face travel direction
         for animal in animals:
+            if not _on_screen(animal["x"], animal["y"]):
+                continue
             a_draw_x = (animal["x"] - cam_x) * tile_draw_size
             a_draw_y = (animal["y"] - cam_y) * tile_draw_size
             bob = 0
@@ -3797,6 +4742,8 @@ while running:
         #Farm raiders: demons that wandered up through a ruin, same look and
         #behavior as their underworld kin
         for demon in farm_demons:
+            if not _on_screen(demon["x"], demon["y"]):
+                continue
             fd_draw_x = (demon["x"] - cam_x) * tile_draw_size
             fd_draw_y = (demon["y"] - cam_y) * tile_draw_size
             bob = (abs(math.sin(current_ticks * 0.01 + demon["x"] * 3)) * tile_draw_size * 0.08
@@ -3809,8 +4756,13 @@ while running:
                 draw_bar(screen, bar_rect, demon["hp"] / DEMON_MAX_HP, (200, 40, 40))
 
         draw_size = tile_draw_size
-        px = (player_x - cam_x) * tile_draw_size
-        py = (player_y - cam_y) * tile_draw_size
+        # Drawn at the smoothed glide position, not the raw discrete tile —
+        # the camera also centers on that same smoothed value, so using the
+        # raw tile here made the sprite pop instantly to the new tile and
+        # then visibly slide back to center as the camera eased to catch
+        # up, rather than the player itself appearing to walk smoothly.
+        px = (player_visual_x - cam_x) * tile_draw_size
+        py = (player_visual_y - cam_y) * tile_draw_size
 
         fdx, fdy = FACING_DELTA[player_facing]
         facing_tile = (player_x + fdx, player_y + fdy)
@@ -3899,6 +4851,9 @@ while running:
         #Demons: a small hop/bob while moving, flipped to face travel direction,
         #with a thin HP bar once they've taken damage
         for demon in demons:
+            if not (cam_x_i - 1 <= demon["x"] <= cam_x_i + visible_cols + 1
+                    and cam_y_i - 1 <= demon["y"] <= cam_y_i + visible_rows + 1):
+                continue
             d_draw_x = (demon["x"] - cam_x) * tile_draw_size
             d_draw_y = (demon["y"] - cam_y) * tile_draw_size
             bob = 0
@@ -3916,8 +4871,13 @@ while running:
                 draw_bar(screen, bar_rect, demon["hp"] / DEMON_MAX_HP, (200, 40, 40))
 
         draw_size = tile_draw_size
-        px = (player_x - cam_x) * tile_draw_size
-        py = (player_y - cam_y) * tile_draw_size
+        # Drawn at the smoothed glide position, not the raw discrete tile —
+        # the camera also centers on that same smoothed value, so using the
+        # raw tile here made the sprite pop instantly to the new tile and
+        # then visibly slide back to center as the camera eased to catch
+        # up, rather than the player itself appearing to walk smoothly.
+        px = (player_visual_x - cam_x) * tile_draw_size
+        py = (player_visual_y - cam_y) * tile_draw_size
 
         fdx, fdy = FACING_DELTA[player_facing]
         facing_tile = (player_x + fdx, player_y + fdy)
@@ -3960,11 +4920,13 @@ while running:
         hud_prompt = None
 
     #Horse (drawn behind the player, only outdoors, while mounted) — gallops
-    #in sync with the rider's own walk timer rather than tracking a separate one
+    #in sync with the rider's own walk timer rather than tracking a separate
+    #one, but cycles legs faster than a walking human (HORSE_FRAME_TIME <
+    #WALK_FRAME_TIME) to match its higher travel speed.
     riding = mounted and location == "farm"
     if riding:
         if player_is_walking:
-            horse_frame_index = 1 + (int(player_walk_timer // WALK_FRAME_TIME) % 2)
+            horse_frame_index = 1 + (int(player_walk_timer // HORSE_FRAME_TIME) % 2)
         else:
             horse_frame_index = 0
         horse_frames = HORSE_FRAMES_FLIPPED if player_facing == "left" else HORSE_FRAMES
@@ -3984,6 +4946,20 @@ while running:
         saddle_y = horse_y0 + int(horse_size * 0.4)
         px = saddle_x - draw_size // 2
         py = saddle_y - int(draw_size * 0.68)
+
+    #Boat (drawn behind the player, only outdoors, while sailing) — a
+    #single static hull, no gallop-style frames needed
+    sailing_now = sailing and location == "farm"
+    if sailing_now:
+        boat_size = int(draw_size * 1.2)
+        boat_scaled = pygame.transform.scale(IMG_BOAT, (boat_size, boat_size))
+        boat_x0 = px + draw_size // 2 - boat_size // 2
+        boat_y0 = py + draw_size - boat_size
+        screen.blit(boat_scaled, (boat_x0, boat_y0))
+
+        draw_size = int(draw_size * 0.85)
+        px = boat_x0 + boat_size // 2 - draw_size // 2
+        py = boat_y0 + int(boat_size * 0.22)
 
     #Player (shared by both scenes) — while idle (not walking, not riding),
     #a subtle 1–2px vertical bob on a slow sine wave sells that the character
@@ -4062,66 +5038,111 @@ while running:
 
     screen.set_clip(None)
 
-    #UI bar background panel
+    #UI bar background panel: a layered wood/leather look — a vertical
+    #gradient, a lit top edge, beveled dividers separating the clock/level/
+    #HP sections, and a horizontal divider above the hotbar row — replacing
+    #the old flat single-color rectangle.
     BAR_TOP = HEIGHT - UI_BAR_HEIGHT
-    pygame.draw.rect(screen, (35, 30, 28), (0, BAR_TOP, WIDTH, UI_BAR_HEIGHT))
-    ROW1_Y = BAR_TOP + 10
+    bar_bg = pygame.Surface((WIDTH, UI_BAR_HEIGHT))
+    top_c, bot_c = (46, 38, 30), (28, 23, 19)
+    for row in range(UI_BAR_HEIGHT):
+        t = row / UI_BAR_HEIGHT
+        c = tuple(int(top_c[i] + (bot_c[i] - top_c[i]) * t) for i in range(3))
+        pygame.draw.line(bar_bg, c, (0, row), (WIDTH, row))
+    screen.blit(bar_bg, (0, BAR_TOP))
+    pygame.draw.line(screen, (200, 162, 92), (0, BAR_TOP), (WIDTH, BAR_TOP), 2)
+    pygame.draw.line(screen, (14, 11, 9), (0, BAR_TOP + 2), (WIDTH, BAR_TOP + 2), 1)
 
-    #Clock + Day + Season
-    draw_clock(screen, (34, ROW1_Y + 24), 22, day_timer / DAY_LENGTH)
-    screen.blit(render_text(ui_font, f"Day {day}", TEXT_CREAM), (64, ROW1_Y + 6))
-    screen.blit(render_text(tool_font, season_for_day(day), TEXT_GOLD), (64, ROW1_Y + 30))
+    def hud_vdivider(x, y0, y1):
+        pygame.draw.line(screen, (16, 13, 10), (x, y0), (x, y1), 2)
+        pygame.draw.line(screen, (80, 66, 52), (x + 2, y0), (x + 2, y1), 1)
+
+    ROW1_Y = BAR_TOP + 12
+    ROW1_BOTTOM = BAR_TOP + 72
+    hud_vdivider(138, ROW1_Y - 2, ROW1_BOTTOM)
+    hud_vdivider(340, ROW1_Y - 2, ROW1_BOTTOM)
+    pygame.draw.line(screen, (16, 13, 10), (0, ROW1_BOTTOM + 6), (WIDTH, ROW1_BOTTOM + 6), 2)
+    pygame.draw.line(screen, (80, 66, 52), (0, ROW1_BOTTOM + 8), (WIDTH, ROW1_BOTTOM + 8), 1)
+
+    #Clock + Day + Season — the clock face gets a small recessed disc behind
+    #it so it reads as its own dial rather than floating on bare background
+    pygame.draw.circle(screen, (24, 20, 16), (34, ROW1_Y + 20), 25)
+    pygame.draw.circle(screen, (14, 11, 9), (34, ROW1_Y + 20), 25, 2)
+    draw_clock(screen, (34, ROW1_Y + 20), 19, day_timer / DAY_LENGTH)
+    screen.blit(render_text(ui_font, f"Day {day}", TEXT_CREAM), (66, ROW1_Y))
+    screen.blit(render_text(tool_font, season_for_day(day), TEXT_GOLD), (66, ROW1_Y + 24))
 
     #Level / XP bar
-    screen.blit(render_text(ui_font, f"Lvl {level}  {xp:.1f}/{xp_needed} XP", TEXT_CREAM), (150, ROW1_Y))
-    xp_bar_rect = pygame.Rect(150, ROW1_Y + 28, 190, 16)
+    screen.blit(render_text(ui_font, f"Lvl {level}", TEXT_GOLD), (150, ROW1_Y - 2))
+    screen.blit(render_text(tool_font, f"{xp:.1f}/{xp_needed} XP", TEXT_CREAM), (150, ROW1_Y + 20))
+    xp_bar_rect = pygame.Rect(150, ROW1_Y + 40, 178, 14)
     draw_bar(screen, xp_bar_rect, xp / xp_needed if xp_needed else 0, TEXT_GOLD)
 
-    #Health bar (the equipped tool is shown held in-hand + in the floating
-    #label over the player now, so this HUD slot is freed up for HP instead)
+    #Health bar — shifts toward amber once seriously low, same as the
+    #building-condition bars elsewhere, so red always means "urgent"
     hp_col_x = 352
-    screen.blit(render_text(tool_font, f"HP {player_hp}/{PLAYER_MAX_HP}", TEXT_CREAM), (hp_col_x, ROW1_Y))
-    hp_bar_rect = pygame.Rect(hp_col_x, ROW1_Y + 18, 138, 12)
-    draw_bar(screen, hp_bar_rect, player_hp / PLAYER_MAX_HP if PLAYER_MAX_HP else 0, (196, 60, 56))
+    hp_frac = player_hp / PLAYER_MAX_HP if PLAYER_MAX_HP else 0
+    hp_color = (196, 60, 56) if hp_frac > 0.3 else (222, 140, 54)
+    screen.blit(render_text(ui_font, f"HP {player_hp}/{PLAYER_MAX_HP}", TEXT_CREAM), (hp_col_x, ROW1_Y - 2))
+    hp_bar_rect = pygame.Rect(hp_col_x, ROW1_Y + 20, 138, 14)
+    draw_bar(screen, hp_bar_rect, hp_frac, hp_color)
 
-    #Emeralds (currency)
-    emerald_icon_small = pygame.transform.scale(IMG_EMERALD, (16, 16))
-    screen.blit(emerald_icon_small, (hp_col_x, ROW1_Y + 36))
-    screen.blit(render_text(tool_font, str(emeralds), TEXT_GOLD), (hp_col_x + 18, ROW1_Y + 35))
+    #Currencies — small recessed pills so each icon+amount reads as one chip
+    def draw_currency_pill(x, y, icon, amount):
+        pill_rect = pygame.Rect(x, y, 62, 22)
+        pygame.draw.rect(screen, (24, 20, 16), pill_rect, border_radius=10)
+        pygame.draw.rect(screen, (70, 58, 46), pill_rect, 1, border_radius=10)
+        screen.blit(pygame.transform.scale(icon, (16, 16)), (x + 4, y + 3))
+        screen.blit(render_text(tool_font, str(amount), TEXT_GOLD), (x + 24, y + 3))
 
-    #Hellsteel (underworld loot currency) — only worth showing once you've found some
+    draw_currency_pill(hp_col_x, ROW1_Y + 42, IMG_EMERALD, emeralds)
     if hellsteel > 0:
-        hellsteel_icon_small = pygame.transform.scale(IMG_HELLSTEEL, (16, 16))
-        screen.blit(hellsteel_icon_small, (hp_col_x + 68, ROW1_Y + 36))
-        screen.blit(render_text(tool_font, str(hellsteel), TEXT_GOLD), (hp_col_x + 86, ROW1_Y + 35))
+        draw_currency_pill(hp_col_x + 68, ROW1_Y + 42, IMG_HELLSTEEL, hellsteel)
 
-    #Hotbar: drag-and-drop reorderable seed/tool slots
+    #Hotbar: drag-and-drop reorderable seed/tool slots, each in its own
+    #beveled card with a soft gold glow around whichever slot is active
     for i, slot in enumerate(hotbar_slots):
         slot_rect = hotbar_slot_rect(i)
-        slot_x = slot_rect.x + 3
+        highlight = (slot["kind"] == "seed" and slot["key"] == selected_seed) or \
+                    (slot["kind"] == "tool" and slot["tool"] is equipped_tool)
 
+        if highlight:
+            glow = pygame.Surface((slot_rect.width + 10, slot_rect.height + 10), pygame.SRCALPHA)
+            pygame.draw.rect(glow, (255, 205, 92, 70), glow.get_rect(), border_radius=10)
+            screen.blit(glow, (slot_rect.x - 5, slot_rect.y - 5))
+            card_bg, border_color = (58, 48, 38), TEXT_GOLD
+        elif drag_slot is not None:
+            card_bg, border_color = (34, 28, 23), (140, 122, 96)  # lit up as a valid drop target
+        else:
+            card_bg, border_color = (34, 28, 23), (80, 66, 52)
+
+        pygame.draw.rect(screen, card_bg, slot_rect, border_radius=7)
+        pygame.draw.rect(screen, border_color, slot_rect, 2, border_radius=7)
+
+        slot_x = slot_rect.x + 3
         if slot["kind"] == "seed":
             seed_key = slot["key"]
-            highlight = seed_key == selected_seed
             icon_img = CROP_IMAGES.get(seed_key)
             if icon_img is not None:
                 screen.blit(pygame.transform.scale(icon_img, (HOTBAR_ICON_SIZE, HOTBAR_ICON_SIZE)), (slot_x, HOTBAR_ROW_Y))
             else:
-                pygame.draw.rect(screen, SEEDS[seed_key]["color"], (slot_x, HOTBAR_ROW_Y + 4, HOTBAR_ICON_SIZE, HOTBAR_ICON_SIZE - 8))
+                pygame.draw.rect(screen, SEEDS[seed_key]["color"],
+                                  (slot_x + 2, HOTBAR_ROW_Y + 2, HOTBAR_ICON_SIZE - 4, HOTBAR_ICON_SIZE - 4), border_radius=4)
             label = f"x{seed_inventory[seed_key]}"
         else:
             tool = slot["tool"]
-            highlight = tool is equipped_tool
-            pygame.draw.rect(screen, tool["color"], (slot_x, HOTBAR_ROW_Y + 4, HOTBAR_ICON_SIZE, HOTBAR_ICON_SIZE - 8))
+            icon_img = TOOL_IMAGES.get(tool["name"])
+            if icon_img is not None:
+                screen.blit(pygame.transform.scale(icon_img, (HOTBAR_ICON_SIZE, HOTBAR_ICON_SIZE)), (slot_x, HOTBAR_ROW_Y))
+            else:
+                pygame.draw.rect(screen, tool["color"],
+                                  (slot_x + 2, HOTBAR_ROW_Y + 2, HOTBAR_ICON_SIZE - 4, HOTBAR_ICON_SIZE - 4), border_radius=4)
             label = f"L{tool['level']}"
 
         if i != drag_slot:  # dragged slot's icon follows the cursor instead
-            count_color = TEXT_GOLD if highlight else TEXT_CREAM
-            screen.blit(render_text(ui_font, label, count_color), (slot_x + HOTBAR_ICON_SIZE + 4, HOTBAR_ROW_Y + 3))
-        if highlight:
-            pygame.draw.rect(screen, TEXT_GOLD, slot_rect, 2)
-        elif drag_slot is not None:
-            pygame.draw.rect(screen, (110, 96, 80), slot_rect, 1)  # subtle drop-zone outline while dragging
+            label_color = TEXT_GOLD if highlight else TEXT_CREAM
+            label_surf = render_text(micro_font, label, label_color)
+            screen.blit(label_surf, (slot_rect.centerx - label_surf.get_width() // 2, HOTBAR_LABEL_Y))
 
     #Dragged item follows the cursor
     if drag_slot is not None:
@@ -4135,7 +5156,11 @@ while running:
             else:
                 pygame.draw.rect(screen, SEEDS[slot["key"]]["color"], (*icon_pos, HOTBAR_ICON_SIZE, HOTBAR_ICON_SIZE - 8))
         else:
-            pygame.draw.rect(screen, slot["tool"]["color"], (*icon_pos, HOTBAR_ICON_SIZE, HOTBAR_ICON_SIZE - 8))
+            icon_img = TOOL_IMAGES.get(slot["tool"]["name"])
+            if icon_img is not None:
+                screen.blit(pygame.transform.scale(icon_img, (HOTBAR_ICON_SIZE, HOTBAR_ICON_SIZE)), icon_pos)
+            else:
+                pygame.draw.rect(screen, slot["tool"]["color"], (*icon_pos, HOTBAR_ICON_SIZE, HOTBAR_ICON_SIZE - 8))
 
 
 
@@ -4216,6 +5241,14 @@ while running:
         market_message_timer -= dt
         alpha = 255 if market_message_timer > 0.5 else int(255 * market_message_timer / 0.5)
         draw_wrapped_centered(screen, ui_font, market_message, TEXT_GOLD, WIDTH // 2, 110, WIDTH - 40, alpha=alpha)
+
+    #Region entry banner: bigger and longer-lived than the market toast,
+    #placed near the top of the screen like a location title card.
+    if region_banner_timer > 0:
+        region_banner_timer -= dt
+        alpha = 255 if region_banner_timer > 0.6 else int(255 * region_banner_timer / 0.6)
+        draw_wrapped_centered(screen, region_name_font, region_banner_name, TEXT_GOLD, WIDTH // 2, 46, WIDTH - 40, alpha=alpha)
+        draw_wrapped_centered(screen, region_epithet_font, region_banner_epithet, TEXT_CREAM, WIDTH // 2, 80, WIDTH - 40, alpha=alpha)
 
     #World map overlay
     if map_open:

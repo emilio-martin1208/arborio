@@ -45,6 +45,11 @@ TREE_SPECIES = [
     dict(name="snow_pine", shape="pine", canopy=(224, 232, 236, 255), shade=(176, 196, 208, 255), outline=(140, 160, 176, 255),
          canopy_r=0.54, canopy_cy=0.5, trunk_h=0.12, trunk_w=0.16,
          trunk=(70, 56, 44, 255), trunk_shade=(52, 40, 32, 255)),
+    # Archipelago special: a tall thin trunk topped with a starburst of
+    # drooping fronds, for the ocean's tropical islands.
+    dict(name="palm", shape="palm", canopy=(70, 148, 62, 255), shade=(50, 116, 50, 255), outline=(34, 88, 38, 255),
+         canopy_r=0.62, canopy_cy=0.2, trunk_h=0.6, trunk_w=0.1,
+         trunk=(168, 132, 84, 255), trunk_shade=(128, 98, 60, 255)),
 ]
 
 ROCK = (150, 148, 142, 255)
@@ -74,14 +79,35 @@ def _draw_trunk(draw, cs_w, cs_h, ref_w, species):
     return cs_h - trunk_h  # y where the canopy should sit on top of the trunk
 
 
-def _draw_round_canopy(draw, cs_w, cs_h, ref_w, species, rng):
+def _draw_organic_canopy(draw, cs_w, cs_h, ref_w, species, rng):
+    """An irregular, lumpy silhouette built from several overlapping
+    randomly-placed lobes (circles) instead of one perfect ellipse — since
+    they share the same solid fill color, overlapping lobes merge into one
+    blob with no visible seams, so this reads as a single natural crown
+    rather than a cluster of balls. rng is seeded per-tree-shape-variant,
+    so every variant gets a different lobe layout while staying within the
+    species' overall size envelope — this is what makes same-species trees
+    actually look different from each other instead of reusing one fixed
+    silhouette."""
     canopy_cy = cs_h * species["canopy_cy"]
     canopy_r = ref_w * species["canopy_r"]
-    outline_pad = ref_w * 0.045
-    draw.ellipse([cs_w / 2 - canopy_r - outline_pad, canopy_cy - canopy_r * 0.95 - outline_pad,
-                  cs_w / 2 + canopy_r + outline_pad, canopy_cy + canopy_r * 0.95 + outline_pad], fill=species["outline"])
-    draw.ellipse([cs_w / 2 - canopy_r, canopy_cy - canopy_r * 0.95,
-                  cs_w / 2 + canopy_r, canopy_cy + canopy_r * 0.95], fill=species["canopy"])
+    outline_pad = ref_w * 0.05
+
+    lobe_count = rng.randint(5, 8)
+    lobes = [(0.0, -0.05, rng.uniform(0.72, 0.85))]  # centered anchor lobe closes any gap
+    for _ in range(lobe_count):
+        angle = rng.uniform(0, 2 * math.pi)
+        dist = rng.uniform(0.15, 0.62)
+        lobes.append((math.cos(angle) * dist, math.sin(angle) * dist * 0.85, rng.uniform(0.4, 0.72)))
+
+    for dx, dy, scale in lobes:
+        cx, cy, r = cs_w / 2 + dx * canopy_r, canopy_cy + dy * canopy_r, canopy_r * scale
+        draw.ellipse([cx - r - outline_pad, cy - r * 0.9 - outline_pad,
+                      cx + r + outline_pad, cy + r * 0.9 + outline_pad], fill=species["outline"])
+    for dx, dy, scale in lobes:
+        cx, cy, r = cs_w / 2 + dx * canopy_r, canopy_cy + dy * canopy_r, canopy_r * scale
+        draw.ellipse([cx - r, cy - r * 0.9, cx + r, cy + r * 0.9], fill=species["canopy"])
+
     for _ in range(16):
         angle = rng.uniform(0, 2 * math.pi)
         r = rng.uniform(0, canopy_r * 0.68)
@@ -94,7 +120,16 @@ def _draw_round_canopy(draw, cs_w, cs_h, ref_w, species, rng):
 def _draw_bushy_canopy(draw, cs_w, cs_h, ref_w, species, rng):
     canopy_cy = cs_h * species["canopy_cy"]
     canopy_r = ref_w * species["canopy_r"]
-    lobes = [(-0.42, 0.08, 0.72), (0.42, 0.08, 0.72), (0.0, -0.12, 1.0)]
+    base_lobes = [(-0.42, 0.08, 0.72), (0.42, 0.08, 0.72), (0.0, -0.12, 1.0)]
+    # per-variant jitter on the base 3-lobe layout, plus 1-2 extra small
+    # lobes at random, so bushy/jungle trees vary between instances too
+    lobes = [(dx + rng.uniform(-0.08, 0.08), dy + rng.uniform(-0.06, 0.06), scale * rng.uniform(0.9, 1.1))
+             for dx, dy, scale in base_lobes]
+    for _ in range(rng.randint(0, 2)):
+        angle = rng.uniform(0, 2 * math.pi)
+        dist = rng.uniform(0.3, 0.6)
+        lobes.append((math.cos(angle) * dist, math.sin(angle) * dist * 0.7, rng.uniform(0.35, 0.55)))
+
     for dx, dy, scale in lobes:
         cx, cy, r = cs_w / 2 + dx * canopy_r, canopy_cy + dy * canopy_r, canopy_r * scale
         pad = ref_w * 0.05
@@ -111,26 +146,32 @@ def _draw_bushy_canopy(draw, cs_w, cs_h, ref_w, species, rng):
         draw.ellipse([x - br, y - br, x + br, y + br], fill=species["shade"])
 
 
-def _draw_pine_canopy(draw, cs_w, cs_h, ref_w, species, trunk_top_y):
+def _draw_pine_canopy(draw, cs_w, cs_h, ref_w, species, trunk_top_y, rng):
     half_w = ref_w * species["canopy_r"]
     top_y = cs_h * 0.06
     layer_count = 4
     layer_h = (trunk_top_y - top_y) / layer_count
     outline_pad = ref_w * 0.04
+    # small per-layer jitter (width, a slight left/right lean) so conifers
+    # aren't perfectly symmetric cones but still read as coniferous, unlike
+    # the lumpier organic broadleaf canopies
+    jitter = [(rng.uniform(0.9, 1.1), rng.uniform(-0.06, 0.06)) for _ in range(layer_count)]
     for i in range(layer_count):
         frac = i / (layer_count - 1)  # 0 at top (narrow), 1 at bottom (wide)
-        w = half_w * (0.35 + 0.65 * frac)
+        w_scale, lean = jitter[i]
+        w = half_w * (0.35 + 0.65 * frac) * w_scale
         y0 = top_y + i * layer_h * 0.82
         y1 = y0 + layer_h * 1.35
-        cx = cs_w / 2
+        cx = cs_w / 2 + lean * ref_w
         draw.polygon([(cx, y0 - outline_pad), (cx + w + outline_pad, y1 + outline_pad),
                       (cx - w - outline_pad, y1 + outline_pad)], fill=species["outline"])
     for i in range(layer_count):
         frac = i / (layer_count - 1)
-        w = half_w * (0.35 + 0.65 * frac)
+        w_scale, lean = jitter[i]
+        w = half_w * (0.35 + 0.65 * frac) * w_scale
         y0 = top_y + i * layer_h * 0.82
         y1 = y0 + layer_h * 1.35
-        cx = cs_w / 2
+        cx = cs_w / 2 + lean * ref_w
         color = species["canopy"] if i % 2 == 0 else species["shade"]
         draw.polygon([(cx, y0), (cx + w, y1), (cx - w, y1)], fill=color)
 
@@ -161,6 +202,40 @@ def _draw_cactus(draw, cs_w, cs_h, ref_w, species):
                             radius=arm_w / 2, fill=species["canopy"])
 
 
+def _draw_palm_canopy(draw, cs_w, cs_h, ref_w, species, trunk_top_y, rng):
+    """A starburst of drooping frond blades radiating from the crown, plus
+    a couple of coconuts — simplified to flat blades rather than trying to
+    render individual leaflets, which reads better at this pixel scale."""
+    cx = cs_w / 2
+    cy = trunk_top_y + cs_h * 0.015
+    frond_len = ref_w * species["canopy_r"]
+    frond_w = ref_w * 0.17
+    base_angles = [-100, -62, -28, 4, 32, 66, 102]
+    angles = [a + rng.uniform(-8, 8) for a in base_angles]
+    outline_pad = ref_w * 0.035
+
+    def frond_end(angle_deg, length):
+        rad = math.radians(angle_deg - 90)
+        return cx + math.cos(rad) * length, cy + math.sin(rad) * length * 0.7 + length * 0.3
+
+    for pad, shrink, use_shade in ((outline_pad, 1.0, None), (0, 0.94, True)):
+        for a in angles:
+            ex, ey = frond_end(a, frond_len * shrink)
+            mx, my = (cx + ex) / 2, (cy + ey) / 2
+            rad = math.radians(a - 90)
+            perp_x, perp_y = -math.sin(rad), math.cos(rad)
+            w = frond_w + pad
+            fill = species["outline"] if use_shade is None else (species["canopy"] if abs(a) < 20 else species["shade"])
+            draw.polygon([(cx, cy), (mx + perp_x * w, my + perp_y * w),
+                          (ex, ey), (mx - perp_x * w, my - perp_y * w)], fill=fill)
+
+    for _ in range(rng.randint(2, 3)):
+        ox = cx + rng.uniform(-0.08, 0.08) * ref_w
+        oy = cy + rng.uniform(0.0, 0.1) * ref_w
+        r = ref_w * 0.055
+        draw.ellipse([ox - r, oy - r, ox + r, oy + r], fill=(94, 66, 42, 255))
+
+
 def make_tree(rng_seed, species):
     # canvas is 2 tiles wide so wide canopies have room; ref_w (1 tile) is
     # what all the species size fractions are relative to
@@ -178,11 +253,13 @@ def make_tree(rng_seed, species):
     trunk_top_y = _draw_trunk(draw, cs_w, cs_h, ref_w, species)
 
     if species["shape"] == "pine":
-        _draw_pine_canopy(draw, cs_w, cs_h, ref_w, species, trunk_top_y)
+        _draw_pine_canopy(draw, cs_w, cs_h, ref_w, species, trunk_top_y, rng)
     elif species["shape"] == "bushy":
         _draw_bushy_canopy(draw, cs_w, cs_h, ref_w, species, rng)
+    elif species["shape"] == "palm":
+        _draw_palm_canopy(draw, cs_w, cs_h, ref_w, species, trunk_top_y, rng)
     else:
-        _draw_round_canopy(draw, cs_w, cs_h, ref_w, species, rng)
+        _draw_organic_canopy(draw, cs_w, cs_h, ref_w, species, rng)
 
     return canvas.resize((w, h), Image.NEAREST)
 
@@ -230,11 +307,18 @@ def make_path():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+#Each species gets several shape variants (different lobe layout/jitter),
+#assigned randomly per tree at world-gen time in farm.py, so a stand of
+#oaks doesn't reuse one fixed silhouette for every single tree.
+TREE_SHAPE_VARIANTS = 4
+
+
 def main():
     for i, species in enumerate(TREE_SPECIES, start=1):
-        path = os.path.join(OUT_DIR, f"Tree{i}.png")
-        make_tree(rng_seed=i * 23, species=species).save(path)
-        print(f"wrote {path} ({species['name']})")
+        for j in range(TREE_SHAPE_VARIANTS):
+            path = os.path.join(OUT_DIR, f"Tree{i}_v{j}.png")
+            make_tree(rng_seed=i * 23 + j * 997, species=species).save(path)
+        print(f"wrote Tree{i}_v0..{TREE_SHAPE_VARIANTS - 1}.png ({species['name']})")
 
     make_rock().save(os.path.join(OUT_DIR, "Decor3.png"))
     make_bush().save(os.path.join(OUT_DIR, "Decor4.png"))

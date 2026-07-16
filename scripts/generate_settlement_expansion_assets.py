@@ -210,6 +210,103 @@ def make_kingdom_gate():
     return c.resize((w, h), Image.NEAREST)
 
 
+# --------------------------------------------------------- Tribal Hut --
+def make_tribal_hut():
+    """Archipelago village centerpiece: round wattle-and-daub walls, a
+    conical dried-palm-thatch roof, and a totem pole with a carved mask
+    out front."""
+    c, w, h = canvas2x2()
+    d = ImageDraw.Draw(c)
+    cs_w, cs_h = w * SCALE, h * SCALE
+    wall = (196, 156, 104, 255)
+    wall_shade = (162, 126, 80, 255)
+    thatch = (188, 148, 66, 255)
+    thatch_shade = (150, 114, 48, 255)
+    thatch_dark = (120, 90, 38, 255)
+    door = (70, 48, 32, 255)
+    totem_wood = (120, 84, 52, 255)
+    totem_mask = (196, 70, 56, 255)
+    totem_eyes = (250, 236, 200, 255)
+
+    # round hut base
+    d.ellipse([cs_w * 0.14, cs_h * 0.5, cs_w * 0.86, cs_h], fill=wall)
+    d.ellipse([cs_w * 0.14, cs_h * 0.78, cs_w * 0.86, cs_h], fill=wall_shade)
+    for x in (0.28, 0.5, 0.72):
+        d.line([(cs_w * x, cs_h * 0.54), (cs_w * x, cs_h)], fill=wall_shade, width=max(1, int(cs_w * 0.012)))
+
+    # doorway
+    d.rounded_rectangle([cs_w * 0.44, cs_h * 0.7, cs_w * 0.58, cs_h], radius=cs_w * 0.06, fill=door)
+
+    # conical thatched roof, built from stacked rings for a shaggy texture
+    d.polygon([(cs_w * 0.06, cs_h * 0.52), (cs_w * 0.5, cs_h * 0.06), (cs_w * 0.94, cs_h * 0.52)], fill=thatch_dark)
+    for i, frac in enumerate((0.0, 0.16, 0.32)):
+        top = cs_h * (0.06 + frac)
+        span = 0.94 - frac * 1.5
+        d.polygon([(cs_w * (0.5 - span / 2), cs_h * 0.52), (cs_w * 0.5, top),
+                   (cs_w * (0.5 + span / 2), cs_h * 0.52)], fill=thatch if i % 2 == 0 else thatch_shade)
+
+    # totem pole beside the hut
+    d.rectangle([cs_w * 0.02, cs_h * 0.42, cs_w * 0.11, cs_h], fill=totem_wood)
+    d.rounded_rectangle([cs_w * 0.005, cs_h * 0.34, cs_w * 0.125, cs_h * 0.5], radius=cs_w * 0.02, fill=totem_mask)
+    d.ellipse([cs_w * 0.02, cs_h * 0.39, cs_w * 0.05, cs_h * 0.42], fill=totem_eyes)
+    d.ellipse([cs_w * 0.08, cs_h * 0.39, cs_w * 0.11, cs_h * 0.42], fill=totem_eyes)
+
+    return c.resize((w, h), Image.NEAREST)
+
+
+# -------------------------------------------------------- Monk Temple --
+def make_monk_temple():
+    """A distant, sacred landmark: pale stone base, a tiered gilded roof,
+    a hanging bronze gong, and prayer flags strung to one side — meant to
+    read as clearly grander/rarer than an ordinary village building."""
+    c, w, h = canvas2x2()
+    d = ImageDraw.Draw(c)
+    cs_w, cs_h = w * SCALE, h * SCALE
+    stone = (222, 214, 196, 255)
+    stone_shade = (188, 178, 158, 255)
+    roof = (150, 40, 44, 255)
+    roof_shade = (110, 26, 30, 255)
+    gold = (222, 184, 90, 255)
+    gold_dark = (176, 138, 58, 255)
+    gong = (198, 150, 78, 255)
+    gong_dark = (150, 108, 52, 255)
+    flag_colors = [(196, 70, 60, 255), (222, 184, 90, 255), (70, 120, 160, 255), (90, 150, 90, 255)]
+
+    # stone base
+    d.rectangle([cs_w * 0.1, cs_h * 0.5, cs_w * 0.9, cs_h], fill=stone)
+    d.rectangle([cs_w * 0.1, cs_h * 0.84, cs_w * 0.9, cs_h], fill=stone_shade)
+    for x in (0.1, 0.34, 0.5, 0.66, 0.9):
+        d.rectangle([cs_w * x, cs_h * 0.5, cs_w * x + cs_w * 0.015, cs_h], fill=stone_shade)
+
+    # gilded doorway arch
+    d.rounded_rectangle([cs_w * 0.4, cs_h * 0.6, cs_w * 0.6, cs_h], radius=cs_w * 0.1, fill=gold_dark)
+    d.rounded_rectangle([cs_w * 0.42, cs_h * 0.64, cs_w * 0.58, cs_h], radius=cs_w * 0.08, fill=(40, 30, 24, 255))
+
+    # tiered pagoda roof
+    d.polygon([(cs_w * -0.02, cs_h * 0.5), (cs_w * 0.5, cs_h * 0.22), (cs_w * 1.02, cs_h * 0.5),
+               (cs_w * 0.94, cs_h * 0.56), (cs_w * 0.5, cs_h * 0.3), (cs_w * 0.06, cs_h * 0.56)], fill=roof)
+    d.polygon([(cs_w * 0.5, cs_h * 0.22), (cs_w * 1.02, cs_h * 0.5), (cs_w * 0.94, cs_h * 0.56),
+               (cs_w * 0.5, cs_h * 0.3)], fill=roof_shade)
+    d.polygon([(cs_w * 0.22, cs_h * 0.22), (cs_w * 0.5, cs_h * 0.02), (cs_w * 0.78, cs_h * 0.22),
+               (cs_w * 0.7, cs_h * 0.27), (cs_w * 0.5, cs_h * 0.1), (cs_w * 0.3, cs_h * 0.27)], fill=gold_dark)
+    d.rectangle([cs_w * 0.485, cs_h * -0.02, cs_w * 0.515, cs_h * 0.05], fill=gold)
+
+    # hanging bronze gong beside the doorway
+    d.rectangle([cs_w * 0.24, cs_h * 0.48, cs_w * 0.26, cs_h * 0.66], fill=gold_dark)
+    d.ellipse([cs_w * 0.16, cs_h * 0.6, cs_w * 0.32, cs_h * 0.76], fill=gong)
+    d.ellipse([cs_w * 0.2, cs_h * 0.64, cs_w * 0.28, cs_h * 0.72], fill=gong_dark)
+
+    # prayer flags strung from the roof eave
+    flag_y = cs_h * 0.56
+    d.line([(cs_w * 0.7, flag_y), (cs_w * 0.98, flag_y - cs_h * 0.04)], fill=(210, 200, 180, 255), width=max(1, int(cs_w * 0.006)))
+    for i, fx in enumerate((0.74, 0.81, 0.88, 0.95)):
+        fy = flag_y - cs_h * 0.04 * (fx - 0.7) / 0.28
+        d.polygon([(cs_w * fx, fy), (cs_w * (fx + 0.04), fy), (cs_w * (fx + 0.02), fy + cs_h * 0.07)],
+                   fill=flag_colors[i % len(flag_colors)])
+
+    return c.resize((w, h), Image.NEAREST)
+
+
 def main():
     make_sakura_house().save(os.path.join(OUT_DIR, "SakuraHouse.png"))
     make_desert_house().save(os.path.join(OUT_DIR, "DesertHouse.png"))
@@ -219,6 +316,10 @@ def main():
     make_wall_stone().save(os.path.join(OUT_DIR, "WallStone.png"))
     make_kingdom_gate().save(os.path.join(OUT_DIR, "KingdomGate.png"))
     print("wrote WallStone.png, KingdomGate.png")
+
+    make_tribal_hut().save(os.path.join(OUT_DIR, "TribalHut.png"))
+    make_monk_temple().save(os.path.join(OUT_DIR, "MonkTemple.png"))
+    print("wrote TribalHut.png, MonkTemple.png")
 
 
 if __name__ == "__main__":

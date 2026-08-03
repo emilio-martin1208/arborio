@@ -1042,6 +1042,21 @@ def is_dew_time(t=None):
     return 0.22 <= frac < 0.32
 
 
+def is_dawn(t=None):
+    """The tail end of the night stretch, just as is_night() is about to
+    flip off — a narrower window than is_dew_time for things that belong
+    only right at first light (the forest spirit), not the whole morning."""
+    frac = (day_timer / DAY_LENGTH) if t is None else t
+    return 0.18 <= frac < 0.24
+
+
+def is_midnight(t=None):
+    """The deep middle of the night stretch — for things rarer than the
+    general is_night() ambience (a ghost lantern, not owls/crickets)."""
+    frac = (day_timer / DAY_LENGTH) if t is None else t
+    return frac >= 0.95 or frac < 0.05
+
+
 #Shooting stars: rare, clickable night-sky streaks — catching one before it
 #fades grants a random seed, a small "look up" reward for exploring at night.
 shooting_stars = []  # {sx, sy, vx, vy, life, max_life} in screen pixels
@@ -1240,6 +1255,23 @@ def discover_landmark(lm):
     lm["discovered"] = True
     emeralds += LANDMARK_REWARDS.get(lm["kind"], 0)
     trigger_ambient_cue(LANDMARK_MESSAGES.get(lm["kind"], "You've found something here..."))
+
+
+#Spirit encounters: rare, purely atmospheric wanderers that drift near the
+#player for a few seconds and vanish — no reward, just something to notice.
+#One shared pool (unlike world_landmarks/collectibles, these are dynamic
+#run-time spawns, not placed once at world-gen).
+spirit_encounters = []  # {x, y, vx, vy, life, max_life, kind, phase}
+
+
+FOREST_SPIRIT_CHANCE = 0.0004  # per-frame, only tested at dawn in forest biomes
+
+
+def spawn_spirit_encounter(kind, x, y, max_life):
+    spirit_encounters.append({
+        "x": x, "y": y, "vx": random.uniform(-0.3, 0.3), "vy": random.uniform(-0.3, 0.3),
+        "life": 0.0, "max_life": max_life, "kind": kind, "phase": random.uniform(0, 6.28),
+    })
 
 
 def draw_landmark(screen, kind, cx, cy, tile_draw_size, discovered):
@@ -3836,6 +3868,20 @@ while running:
             ww["y"] += ww["vy"] * dt
         whirlwinds[:] = [ww for ww in whirlwinds if ww["life"] < ww["max_life"]]
 
+    #Forest spirit: a rare wisp of light seen drifting through the trees,
+    #right at first light — never seen any other time of day.
+    if location == "farm" and is_dawn() and biome_for(int(player_x), int(player_y)) in ("maple", "jungle") \
+            and random.random() < FOREST_SPIRIT_CHANCE:
+        spawn_spirit_encounter("forest_spirit", player_x + random.uniform(-5, 5),
+                               player_y + random.uniform(-5, 5), max_life=8.0)
+        trigger_ambient_cue("A forest spirit drifts silently between the trees...")
+    if spirit_encounters:
+        for sp in spirit_encounters:
+            sp["life"] += dt
+            sp["x"] += sp["vx"] * dt
+            sp["y"] += sp["vy"] * dt
+        spirit_encounters[:] = [sp for sp in spirit_encounters if sp["life"] < sp["max_life"]]
+
     #Footprints: just fade out over time, no drift
     if location == "farm":
         for fp in footprints:
@@ -5436,6 +5482,26 @@ while running:
             lm_cx = (lm["x"] - cam_x) * tile_draw_size + tile_draw_size // 2
             lm_cy = (lm["y"] - cam_y) * tile_draw_size + tile_draw_size // 2
             draw_landmark(screen, lm["kind"], lm_cx, lm_cy, tile_draw_size, lm["discovered"])
+
+        #Spirit encounters: a soft glow that fades in, holds, then fades
+        #back out — dispatch on kind for color/shape, shared fade math.
+        SPIRIT_COLORS = {"forest_spirit": (150, 220, 160)}
+        for sp in spirit_encounters:
+            if sp["x"] < cam_x_i - 1 or sp["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if sp["y"] < cam_y_i - 1 or sp["y"] > cam_y_i + visible_rows + 1:
+                continue
+            t = sp["life"] / sp["max_life"]
+            fade = min(1.0, t * 3) * min(1.0, (1 - t) * 3)
+            sp_cx = (sp["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            sp_cy = (sp["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.5 \
+                + math.sin(sp["life"] * 2 + sp["phase"]) * tile_draw_size * 0.15
+            color = SPIRIT_COLORS.get(sp["kind"], (200, 200, 220))
+            sp_r = int(tile_draw_size * 0.3)
+            sp_surf = pygame.Surface((sp_r * 2, sp_r * 2), pygame.SRCALPHA)
+            pygame.draw.circle(sp_surf, (*color, int(160 * fade)), (sp_r, sp_r), sp_r)
+            pygame.draw.circle(sp_surf, (255, 255, 255, int(200 * fade)), (sp_r, sp_r), max(1, int(sp_r * 0.35)))
+            screen.blit(sp_surf, (sp_cx - sp_r, sp_cy - sp_r))
 
         # --- House exterior: sprite is 2 tiles tall, anchored so its bottom
         # edge sits on the bottom of its 1-tile solid footprint (the roof

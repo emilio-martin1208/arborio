@@ -1059,6 +1059,7 @@ COLLECTIBLE_COLORS = {
     "wild_berry": (150, 40, 110),
     "truffle": (120, 90, 60),
     "lucky_rock": (225, 225, 210),
+    "fossil": (196, 178, 140),
 }
 COLLECTIBLE_MESSAGES = {
     "four_leaf_clover": "A four-leaf clover! Lucky find (+15 emeralds).",
@@ -1066,6 +1067,7 @@ COLLECTIBLE_MESSAGES = {
     "wild_berry": "Picked a handful of wild berries (+6 emeralds).",
     "truffle": "Dug up a rare truffle! (+25 emeralds)",
     "lucky_rock": "A smooth lucky rock! (+12 emeralds)",
+    "fossil": "Dug up an ancient fossil! (+18 emeralds)",
 }
 MUSHROOM_LIFETIME = 90.0  # seconds before an uncollected post-rain mushroom withers
 
@@ -1117,6 +1119,8 @@ def collect_world_item(kind):
         emeralds += 25
     elif kind == "lucky_rock":
         emeralds += 12
+    elif kind == "fossil":
+        emeralds += 18
 
 #Tree spawn
 TREE_INTERVAL = 20.0
@@ -3103,6 +3107,7 @@ spawn_collectible_scattered("four_leaf_clover", 50, biomes=("meadow", "maple"))
 spawn_collectible_scattered("wild_berry", 60, biomes=("jungle", "maple"))
 spawn_collectible_scattered("truffle", 18, biomes=("jungle",))
 spawn_collectible_scattered("lucky_rock", 25, biomes=("tundra", "desert"))
+spawn_collectible_scattered("fossil", 20, biomes=("desert",))
 
 
 #Settlement counts scaled ~2.5x for the larger world, except kingdoms —

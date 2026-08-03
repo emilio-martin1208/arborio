@@ -31,6 +31,12 @@ FOX_BELLY = (240, 226, 204, 255)
 FOX_EYE = (30, 26, 24, 255)
 FOX_EAR_INNER = (40, 30, 26, 255)
 
+DEER_BODY = (168, 124, 84, 255)
+DEER_SHADE = (138, 100, 66, 255)
+DEER_BELLY = (232, 218, 196, 255)
+DEER_ANTLER = (196, 176, 150, 255)
+DEER_EYE = (30, 26, 24, 255)
+
 
 def s(v):
     return v * SCALE
@@ -114,11 +120,39 @@ def make_fox():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_deer():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # legs (drawn first so the body sits over the top of them)
+    for lx in (12, 16, 20, 24):
+        draw.line([(s(lx), s(23)), (s(lx), s(30))], fill=DEER_SHADE, width=max(1, int(s(0.6))))
+    # body
+    draw.ellipse([s(8), s(13), s(25), s(24)], fill=DEER_BODY)
+    draw.ellipse([s(8), s(18), s(25), s(24)], fill=DEER_SHADE)
+    # belly
+    draw.ellipse([s(12), s(18), s(21), s(24)], fill=DEER_BELLY)
+    # head + neck
+    draw.polygon([(s(20), s(19)), (s(24), s(8)), (s(28), s(19))], fill=DEER_BODY)
+    draw.ellipse([s(22), s(6), s(30), s(14)], fill=DEER_BODY)
+    # antlers
+    draw.line([(s(23), s(7)), (s(21), s(1))], fill=DEER_ANTLER, width=max(1, int(s(0.4))))
+    draw.line([(s(21), s(4)), (s(19), s(3))], fill=DEER_ANTLER, width=max(1, int(s(0.3))))
+    draw.line([(s(26), s(6)), (s(28), s(0.5))], fill=DEER_ANTLER, width=max(1, int(s(0.4))))
+    draw.line([(s(27), s(3)), (s(29), s(2))], fill=DEER_ANTLER, width=max(1, int(s(0.3))))
+    # eye + tail
+    draw.ellipse([s(27), s(9), s(28.5), s(10.5)], fill=DEER_EYE)
+    draw.ellipse([s(6), s(16), s(9), s(20)], fill=DEER_BELLY)
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
     make_fox().save(os.path.join(OUT_DIR, "Fox.png"))
-    print("wrote Rabbit.png, Bird.png, Fox.png")
+    make_deer().save(os.path.join(OUT_DIR, "Deer.png"))
+    print("wrote Rabbit.png, Bird.png, Fox.png, Deer.png")
 
 
 if __name__ == "__main__":

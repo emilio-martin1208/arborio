@@ -84,6 +84,13 @@ SHEEP_WOOL_SHADE = (212, 206, 194, 255)
 SHEEP_FACE = (60, 52, 48, 255)
 SHEEP_EYE = (20, 18, 16, 255)
 
+GOAT_BODY = (214, 208, 196, 255)
+GOAT_SHADE = (182, 174, 160, 255)
+GOAT_FACE = (196, 188, 174, 255)
+GOAT_HORN = (150, 132, 106, 255)
+GOAT_BEARD = (176, 166, 150, 255)
+GOAT_EYE = (150, 110, 40, 255)
+
 
 def s(v):
     return v * SCALE
@@ -363,6 +370,26 @@ def make_sheep():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_goat():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # body
+    draw.ellipse([s(7), s(14), s(23), s(26)], fill=GOAT_BODY)
+    draw.ellipse([s(7), s(20), s(23), s(26)], fill=GOAT_SHADE)
+    # head
+    draw.ellipse([s(18), s(8), s(28), s(19)], fill=GOAT_FACE)
+    # horns
+    draw.line([(s(20), s(9)), (s(18), s(2))], fill=GOAT_HORN, width=max(1, int(s(0.7))))
+    draw.line([(s(25), s(9)), (s(27), s(2))], fill=GOAT_HORN, width=max(1, int(s(0.7))))
+    # beard
+    draw.polygon([(s(21), s(17)), (s(23), s(22)), (s(25), s(17))], fill=GOAT_BEARD)
+    # eye
+    draw.ellipse([s(24), s(11.5), s(25.5), s(13)], fill=GOAT_EYE)
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
@@ -376,7 +403,8 @@ def main():
     make_duck().save(os.path.join(OUT_DIR, "Duck.png"))
     make_cow().save(os.path.join(OUT_DIR, "Cow.png"))
     make_sheep().save(os.path.join(OUT_DIR, "Sheep.png"))
-    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken/Duck/Cow/Sheep.png")
+    make_goat().save(os.path.join(OUT_DIR, "Goat.png"))
+    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken/Duck/Cow/Sheep/Goat.png")
 
 
 if __name__ == "__main__":

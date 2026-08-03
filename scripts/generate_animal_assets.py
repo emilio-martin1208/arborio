@@ -66,6 +66,12 @@ CHICKEN_COMB = (200, 60, 56, 255)
 CHICKEN_BEAK = (232, 158, 60, 255)
 CHICKEN_EYE = (30, 26, 24, 255)
 
+DUCK_BODY = (238, 232, 200, 255)
+DUCK_SHADE = (206, 198, 160, 255)
+DUCK_HEAD = (90, 150, 90, 255)
+DUCK_BEAK = (232, 158, 60, 255)
+DUCK_EYE = (30, 26, 24, 255)
+
 
 def s(v):
     return v * SCALE
@@ -288,6 +294,25 @@ def make_chicken():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_duck():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # body
+    draw.ellipse([s(7), s(15), s(24), s(26)], fill=DUCK_BODY)
+    draw.ellipse([s(7), s(20), s(24), s(26)], fill=DUCK_SHADE)
+    # head + neck
+    draw.ellipse([s(19), s(8), s(28), s(17)], fill=DUCK_HEAD)
+    # beak
+    draw.polygon([(s(26), s(12)), (s(31), s(12.5)), (s(26), s(15))], fill=DUCK_BEAK)
+    draw.ellipse([s(24), s(10.5), s(25.5), s(12)], fill=DUCK_EYE)
+    # feet
+    draw.polygon([(s(13), s(26)), (s(11), s(29)), (s(15), s(28))], fill=DUCK_BEAK)
+    draw.polygon([(s(18), s(26)), (s(17), s(29)), (s(20), s(28))], fill=DUCK_BEAK)
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
@@ -298,7 +323,8 @@ def main():
     make_cat().save(os.path.join(OUT_DIR, "Cat.png"))
     make_mouse().save(os.path.join(OUT_DIR, "Mouse.png"))
     make_chicken().save(os.path.join(OUT_DIR, "Chicken.png"))
-    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken.png")
+    make_duck().save(os.path.join(OUT_DIR, "Duck.png"))
+    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken/Duck.png")
 
 
 if __name__ == "__main__":

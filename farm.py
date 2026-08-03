@@ -2579,6 +2579,7 @@ IDLE_ACTIONS_BY_SPECIES = {
     "chicken": ["peck", "dust_bathe"],
     "pig": ["mud_roll", "truffle_sniff"],
     "sheep": ["rub", "sleep"],
+    "cow": ["chew_cud"],
 }
 IDLE_ACTION_CHANCE = 0.01  # rolled once per frame an animal is truly idle with no action already playing
 IDLE_ACTION_DURATION = 1.2
@@ -2615,6 +2616,10 @@ def draw_idle_action(screen, species, action, cx, cy, tile_draw_size, ticks):
         drift = math.sin(ticks * 0.004) * 3
         zz_surf = micro_font.render("z", True, (255, 255, 255))
         screen.blit(zz_surf, (cx + tile_draw_size * 0.25, cy - tile_draw_size * 0.5 + drift))
+    elif species == "cow" and action == "chew_cud":
+        jaw = abs(math.sin(ticks * 0.01)) * 2
+        pygame.draw.line(screen, (200, 170, 160), (cx + tile_draw_size * 0.2, cy + tile_draw_size * 0.15),
+                          (cx + tile_draw_size * 0.2, cy + tile_draw_size * 0.15 + jaw), 2)
 
 
 def spawn_animal():

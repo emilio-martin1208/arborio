@@ -1154,6 +1154,13 @@ lunar_eclipse_active = False
 lunar_eclipse_day = None
 LUNAR_ECLIPSE_CHANCE = 0.15  # rolled once, the first time each full-moon night is detected
 
+#Meteor shower: a rare night where shooting stars pour down far more often
+#than usual — decided once per night, same pattern as the lunar eclipse.
+meteor_shower_active = False
+meteor_shower_day = None
+METEOR_SHOWER_CHANCE = 0.1
+METEOR_SHOWER_MULT = 8.0
+
 
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
@@ -4184,6 +4191,7 @@ while running:
     #and vanish on their own if never clicked
     if location == "farm":
         star_chance = SHOOTING_STAR_CHANCE * (1.8 if is_full_moon() else 1.0)
+        star_chance *= METEOR_SHOWER_MULT if meteor_shower_active else 1.0
         if is_night() and random.random() < star_chance:
             view_h = HEIGHT - UI_BAR_HEIGHT
             edge = random.choice(["top", "left", "right"])
@@ -4529,6 +4537,16 @@ while running:
                 trigger_ambient_cue("🌑 A lunar eclipse creeps over the full moon...")
     elif not is_night():
         lunar_eclipse_active = False
+
+    #Meteor shower: decided once per night, independent of the moon.
+    if location == "farm" and is_night():
+        if meteor_shower_day != day:
+            meteor_shower_day = day
+            meteor_shower_active = random.random() < METEOR_SHOWER_CHANCE
+            if meteor_shower_active:
+                trigger_ambient_cue("☄️ A meteor shower streaks across the sky tonight!")
+    elif not is_night():
+        meteor_shower_active = False
 
     #Bubbles: a rare rising bubble spawned from a random pond tile.
     if location == "farm" and water_shapes and random.random() < BUBBLE_CHANCE:

@@ -950,6 +950,12 @@ MAILBOX_AD_MESSAGES = [
     "Mailbox: \"Blacksmith now offering tool upgrades, ask in town!\"",
     "Mailbox: \"Wanted: fresh produce for the tavern. Fair prices paid.\"",
 ]
+MAILBOX_FORTUNE_MESSAGES = [
+    "Mailbox: A fortune cookie! \"A small seed today is a great harvest tomorrow.\"",
+    "Mailbox: A fortune cookie! \"Fortune favors those who check their mail.\"",
+    "Mailbox: A fortune cookie! \"The rain that falls today waters tomorrow's mushrooms.\"",
+    "Mailbox: A fortune cookie! \"An unopened door is just a wall you haven't tried yet.\"",
+]
 
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
@@ -4842,7 +4848,8 @@ while running:
                 if event.key == pygame.K_e and (player_x, player_y) == mailbox_pos:
                     if mailbox_checked_day != day:
                         mailbox_checked_day = day
-                        market_message = random.choice(MAILBOX_AD_MESSAGES)
+                        mail_pool = random.choice([MAILBOX_AD_MESSAGES, MAILBOX_FORTUNE_MESSAGES])
+                        market_message = random.choice(mail_pool)
                         market_message_timer = 3.0
                     else:
                         market_message, market_message_timer = "Mailbox: Nothing new today.", 2.0

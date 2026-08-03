@@ -4533,6 +4533,11 @@ while running:
                         wood_gain = random.randint(4, 8)
                         resources["wood"] += wood_gain
                         market_message, market_message_timer = f"+{wood_gain} Wood", 1.6
+                        #Stump mushrooms: sometimes what's left behind grows
+                        #its own little mushroom cluster — permanent, unlike
+                        #the post-rain mushrooms that share this same kind.
+                        if random.random() < 0.15:
+                            world_collectibles.append({"x": fx, "y": fy, "kind": "mushroom"})
 
             # Mining a boulder (must be equipped with the Pick and facing it) —
             # drops Stone, with a smaller chance of Iron.

@@ -1012,13 +1012,16 @@ SHOOTING_STAR_CLICK_RADIUS = 22
 #across the map — a shared framework so each new kind (clovers, berries,
 #truffles, geodes, coins, ...) is just a visual + a reward, reusing the
 #same placement/render/collect plumbing instead of one-off systems each.
-world_collectibles = []  # {x, y, kind}
+world_collectibles = []  # {x, y, kind, [life, max_life for temporary ones]}
 COLLECTIBLE_COLORS = {
     "four_leaf_clover": (60, 160, 70),
+    "mushroom": (196, 84, 72),
 }
 COLLECTIBLE_MESSAGES = {
     "four_leaf_clover": "A four-leaf clover! Lucky find (+15 emeralds).",
+    "mushroom": "Picked a wild mushroom (+8 emeralds).",
 }
+MUSHROOM_LIFETIME = 90.0  # seconds before an uncollected post-rain mushroom withers
 
 
 def spawn_collectible_scattered(kind, count, biomes=None):
@@ -1036,12 +1039,32 @@ def spawn_collectible_scattered(kind, count, biomes=None):
         placed += 1
 
 
+def spawn_collectible_burst(kind, count, biomes=None, lifetime=None):
+    """Like spawn_collectible_scattered, but tags each item with a lifespan —
+    for weather-triggered finds (mushrooms after rain) that should wither
+    away rather than permanently litter the map."""
+    placed = 0
+    attempts = 0
+    while placed < count and attempts < count * 40:
+        attempts += 1
+        x = random.randint(0, MAINLAND_W - 1)
+        y = random.randint(0, WORLD_H - 1)
+        if biomes and biome_for(x, y) not in biomes:
+            continue
+        if farm[y][x]["state"] != "grass" or (x, y) in FARM_BLOCKED_TILES:
+            continue
+        world_collectibles.append({"x": x, "y": y, "kind": kind, "life": 0.0, "max_life": lifetime})
+        placed += 1
+
+
 def collect_world_item(kind):
     """Applies a collectible's reward by name — kept as one dispatch point
     so new kinds only need a case here, not a new E-key handler each."""
     global emeralds
     if kind == "four_leaf_clover":
         emeralds += 15
+    elif kind == "mushroom":
+        emeralds += 8
 
 #Tree spawn
 TREE_INTERVAL = 20.0
@@ -3601,6 +3624,12 @@ while running:
         if rain_timer >= RAIN_DURATION:
             raining = False
             rain_timer = 0.0
+            #Mushrooms only ever pop up right after a rain shower clears —
+            #a damp-ground reward for exploring the meadow/maple/jungle
+            #biomes, gone again after MUSHROOM_LIFETIME if never picked.
+            spawn_collectible_burst("mushroom", random.randint(4, 9),
+                                     biomes=("meadow", "maple", "jungle"),
+                                     lifetime=MUSHROOM_LIFETIME)
     elif snowing:
         snow_timer += dt
         if snow_timer >= SNOW_DURATION:
@@ -3643,6 +3672,15 @@ while running:
             if flake["y"] > farm_view_h:
                 flake["y"] = random.uniform(-40, -5)
                 flake["x"] = random.uniform(0, WIDTH)
+
+    #Age out temporary world collectibles (e.g. post-rain mushrooms) that
+    #were never picked up — permanent ones (clovers) have max_life=None.
+    if world_collectibles:
+        for item in world_collectibles:
+            if item.get("max_life") is not None:
+                item["life"] += dt
+        world_collectibles[:] = [c for c in world_collectibles
+                                  if c.get("max_life") is None or c["life"] < c["max_life"]]
 
     if haste:
         haste_timer += dt

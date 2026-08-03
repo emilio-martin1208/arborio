@@ -1013,6 +1013,11 @@ FARM_BLOCKED_TILES.add(campfire_pos)
 campfire_roasted_day = 0
 CAMPFIRE_XP_REWARD = 5.0
 
+#Butter churn: a purely decorative prop near the house with a continuously
+#animated churning handle — no mechanic, just something that actually moves.
+butter_churn_pos = (HOUSE_POS[0] + 6, DOOR_ROW + 2)
+FARM_BLOCKED_TILES.add(butter_churn_pos)
+
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
 INTERIOR_W, INTERIOR_H = 6, 5
@@ -6384,6 +6389,22 @@ while running:
             pygame.draw.circle(screen, (245, 235, 220),
                                 (int(cf_cx + tile_draw_size * 0.4), int(cf_cy - tile_draw_size * 0.15)),
                                 max(1, int(tile_draw_size * 0.06)))
+
+        #Butter churn: a wooden barrel with a crank handle that actually
+        #spins, rather than a static decoration.
+        bc_draw_x = (butter_churn_pos[0] - cam_x) * tile_draw_size
+        bc_draw_y = (butter_churn_pos[1] - cam_y) * tile_draw_size
+        pygame.draw.rect(screen, (150, 108, 62),
+                          (bc_draw_x + tile_draw_size * 0.32, bc_draw_y + tile_draw_size * 0.35,
+                           tile_draw_size * 0.36, tile_draw_size * 0.5))
+        churn_cx = bc_draw_x + tile_draw_size * 0.5
+        churn_cy = bc_draw_y + tile_draw_size * 0.3
+        churn_angle = current_ticks * 0.003
+        handle_r = tile_draw_size * 0.16
+        handle_x = churn_cx + math.cos(churn_angle) * handle_r
+        handle_y = churn_cy + math.sin(churn_angle) * handle_r * 0.5
+        pygame.draw.line(screen, (90, 66, 40), (churn_cx, churn_cy), (handle_x, handle_y), 2)
+        pygame.draw.circle(screen, (60, 44, 28), (int(handle_x), int(handle_y)), max(1, int(tile_draw_size * 0.04)))
 
         #Outposts / marketplaces: same bottom-anchored, 2-tiles-tall technique as the house
         for outpost in outposts:

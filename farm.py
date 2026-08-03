@@ -181,6 +181,11 @@ DECIDUOUS_TREE_INDICES = set(TREE_LEAF_COLORS.keys())
 LEAF_SPAWN_CHANCE = 0.0005
 falling_leaves = []  # {x, y, vx, vy, life, max_life, color, phase}
 
+#Fireflies: see the summer-night spawn/drift tick further down for how
+#this pool is maintained.
+FIREFLY_COUNT = 16
+fireflies = []  # {x, y, vx, vy, phase} in screen pixels
+
 #Footprints: left behind on foot (not mounted, not sailing), alternating
 #left/right of the direction of travel, fading out after a few seconds.
 FOOTPRINT_LIFETIME = 2.5
@@ -3386,6 +3391,27 @@ while running:
             leaf["y"] += leaf["vy"] * dt
         falling_leaves[:] = [leaf for leaf in falling_leaves if leaf["life"] < leaf["max_life"]]
 
+    #Fireflies: small blinking glow-dots drifting over the grass on summer
+    #nights — kept in screen space like the rain/snow particles, since a
+    #floating ambient glow doesn't need to be pinned to world tiles.
+    if location == "farm":
+        firefly_active = season_for_day(day) == "Summer" and is_night()
+        view_h = HEIGHT - UI_BAR_HEIGHT
+        if firefly_active and len(fireflies) < FIREFLY_COUNT:
+            fireflies.append({
+                "x": random.uniform(0, WIDTH), "y": random.uniform(0, view_h),
+                "vx": random.uniform(-8, 8), "vy": random.uniform(-8, 8),
+                "phase": random.uniform(0, 6.28),
+            })
+        elif not firefly_active and fireflies:
+            fireflies.clear()
+        for fly in fireflies:
+            ticks = pygame.time.get_ticks()
+            fly["x"] += (fly["vx"] + math.sin(ticks * 0.001 + fly["phase"]) * 6) * dt
+            fly["y"] += (fly["vy"] + math.cos(ticks * 0.0013 + fly["phase"]) * 6) * dt
+            fly["x"] %= WIDTH
+            fly["y"] %= view_h
+
     #Footprints: just fade out over time, no drift
     if location == "farm":
         for fp in footprints:
@@ -5277,6 +5303,16 @@ while running:
                 pygame.draw.arc(rainbow_surf, (*color, int(150 * rb_alpha)),
                                  band_rect, math.pi, 2 * math.pi, 6)
             screen.blit(rainbow_surf, (0, 0))
+
+    #Fireflies: soft green-gold glow, pulsing in and out rather than a
+    #flat dot, so they read as "blinking" rather than just floating.
+    if location == "farm" and fireflies:
+        fly_surf = pygame.Surface((WIDTH, HEIGHT - UI_BAR_HEIGHT), pygame.SRCALPHA)
+        for fly in fireflies:
+            blink = (math.sin(pygame.time.get_ticks() * 0.006 + fly["phase"]) + 1) / 2
+            alpha = int(50 + 190 * blink)
+            pygame.draw.circle(fly_surf, (210, 255, 120, alpha), (int(fly["x"]), int(fly["y"])), 2)
+        screen.blit(fly_surf, (0, 0))
 
     #Shooting stars: a bright head with a fading tail along its direction
     #of travel — click one before it burns out for a random seed

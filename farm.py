@@ -992,6 +992,12 @@ snow_timer = 0.0
 snowing = False
 snow_flakes = []
 
+#Rainbow: a brief, purely visual arc that follows a rain shower — only
+#shows up if it isn't already night by the time the rain clears.
+RAINBOW_DURATION = 14.0
+rainbow_timer = 0.0
+rainbow_active = False
+
 
 def is_night(t=None):
     """True during the dusk-to-dawn stretch of the day cycle (day_timer's
@@ -3637,6 +3643,9 @@ while running:
             spawn_collectible_burst("mushroom", random.randint(4, 9),
                                      biomes=("meadow", "maple", "jungle"),
                                      lifetime=MUSHROOM_LIFETIME)
+            if not is_night():
+                rainbow_active = True
+                rainbow_timer = 0.0
     elif snowing:
         snow_timer += dt
         if snow_timer >= SNOW_DURATION:
@@ -3679,6 +3688,12 @@ while running:
             if flake["y"] > farm_view_h:
                 flake["y"] = random.uniform(-40, -5)
                 flake["x"] = random.uniform(0, WIDTH)
+
+    if rainbow_active:
+        rainbow_timer += dt
+        if rainbow_timer >= RAINBOW_DURATION or is_night():
+            rainbow_active = False
+            rainbow_timer = 0.0
 
     #Age out temporary world collectibles (e.g. post-rain mushrooms) that
     #were never picked up — permanent ones (clovers) have max_life=None.
@@ -5217,6 +5232,25 @@ while running:
             pygame.draw.circle(snow_surf, (255, 255, 255, 210),
                                 (int(flake["x"]), int(flake["y"])), int(flake["size"]))
         screen.blit(snow_surf, (0, 0))
+
+    #Rainbow: a faint arc that fades in after a rain shower clears and
+    #fades back out as RAINBOW_DURATION runs down — purely decorative.
+    if location == "farm" and rainbow_active:
+        fade_in = min(1.0, rainbow_timer / 2.0)
+        fade_out = min(1.0, max(0.0, RAINBOW_DURATION - rainbow_timer) / 3.0)
+        rb_alpha = fade_in * fade_out
+        if rb_alpha > 0.01:
+            rainbow_surf = pygame.Surface((WIDTH, HEIGHT - UI_BAR_HEIGHT), pygame.SRCALPHA)
+            arc_cx, arc_cy = WIDTH * 0.5, HEIGHT * 0.55
+            arc_w, arc_h = WIDTH * 0.95, HEIGHT * 1.1
+            band_colors = [(220, 60, 60), (230, 140, 50), (230, 210, 60),
+                           (80, 170, 90), (70, 130, 210), (110, 80, 190)]
+            for i, color in enumerate(band_colors):
+                band_rect = pygame.Rect(0, 0, arc_w - i * 16, arc_h - i * 16)
+                band_rect.center = (arc_cx, arc_cy)
+                pygame.draw.arc(rainbow_surf, (*color, int(150 * rb_alpha)),
+                                 band_rect, math.pi, 2 * math.pi, 6)
+            screen.blit(rainbow_surf, (0, 0))
 
     #Shooting stars: a bright head with a fading tail along its direction
     #of travel — click one before it burns out for a random seed

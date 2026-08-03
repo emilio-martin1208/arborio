@@ -956,6 +956,12 @@ MAILBOX_FORTUNE_MESSAGES = [
     "Mailbox: A fortune cookie! \"The rain that falls today waters tomorrow's mushrooms.\"",
     "Mailbox: A fortune cookie! \"An unopened door is just a wall you haven't tried yet.\"",
 ]
+MAILBOX_NEWSPAPER_TIPS = [
+    "Mailbox: Today's Gazette — \"Watchtowers cut down on farm raids significantly.\"",
+    "Mailbox: Today's Gazette — \"A Windmill speeds up every Mill you own.\"",
+    "Mailbox: Today's Gazette — \"Bee Hives placed near flowers produce honey faster.\"",
+    "Mailbox: Today's Gazette — \"Orchard Plots auto-replant apples and grapes for you.\"",
+]
 
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
@@ -4848,7 +4854,8 @@ while running:
                 if event.key == pygame.K_e and (player_x, player_y) == mailbox_pos:
                     if mailbox_checked_day != day:
                         mailbox_checked_day = day
-                        mail_pool = random.choice([MAILBOX_AD_MESSAGES, MAILBOX_FORTUNE_MESSAGES])
+                        mail_pool = random.choice([MAILBOX_AD_MESSAGES, MAILBOX_FORTUNE_MESSAGES,
+                                                    MAILBOX_NEWSPAPER_TIPS])
                         market_message = random.choice(mail_pool)
                         market_message_timer = 3.0
                     else:

@@ -963,6 +963,11 @@ MAILBOX_NEWSPAPER_TIPS = [
     "Mailbox: Today's Gazette — \"Orchard Plots auto-replant apples and grapes for you.\"",
 ]
 
+#Weather board: a second fixed prop by the house, reporting today's season
+#and current sky conditions rather than a fixed message pool like the mailbox.
+weather_board_pos = (HOUSE_POS[0] + 3, DOOR_ROW + 1)
+FARM_BLOCKED_TILES.add(weather_board_pos)
+
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
 INTERIOR_W, INTERIOR_H = 6, 5
@@ -4861,6 +4866,21 @@ while running:
                     else:
                         market_message, market_message_timer = "Mailbox: Nothing new today.", 2.0
 
+            # Checking the weather board (standing on it, press E) — reports
+            # the season and whatever's actually happening in the sky right now.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e and (player_x, player_y) == weather_board_pos:
+                    if raining:
+                        sky = "Raining right now."
+                    elif snowing:
+                        sky = "Snowing right now."
+                    elif is_night():
+                        sky = "Clear night skies."
+                    else:
+                        sky = "Clear skies."
+                    market_message = f"Weather Board: {season_for_day(day)} — {sky}"
+                    market_message_timer = 2.6
+
             # Discovering a world landmark (standing on it, press E) — a
             # one-time thing, unlike collectibles, so revisiting does nothing.
             if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
@@ -5734,6 +5754,20 @@ while running:
         pygame.draw.rect(screen, flag_color,
                           (mb_draw_x + tile_draw_size * 0.7, mb_draw_y + tile_draw_size * 0.16,
                            tile_draw_size * 0.06, tile_draw_size * (0.2 if flag_up else 0.04)))
+
+        #Weather board: a wooden signpost with a small painted sky icon.
+        wb_draw_x = (weather_board_pos[0] - cam_x) * tile_draw_size
+        wb_draw_y = (weather_board_pos[1] - cam_y) * tile_draw_size
+        pygame.draw.rect(screen, (110, 82, 52),
+                          (wb_draw_x + tile_draw_size * 0.46, wb_draw_y + tile_draw_size * 0.35,
+                           max(1, int(tile_draw_size * 0.08)), tile_draw_size * 0.65))
+        pygame.draw.rect(screen, (200, 190, 160),
+                          (wb_draw_x + tile_draw_size * 0.2, wb_draw_y + tile_draw_size * 0.14,
+                           tile_draw_size * 0.6, tile_draw_size * 0.34))
+        board_sky_color = (100, 130, 200) if not raining and not snowing else (150, 150, 160)
+        pygame.draw.circle(screen, board_sky_color,
+                            (int(wb_draw_x + tile_draw_size * 0.5), int(wb_draw_y + tile_draw_size * 0.31)),
+                            max(1, int(tile_draw_size * 0.08)))
 
         #Outposts / marketplaces: same bottom-anchored, 2-tiles-tall technique as the house
         for outpost in outposts:

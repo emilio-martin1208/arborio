@@ -72,6 +72,13 @@ DUCK_HEAD = (90, 150, 90, 255)
 DUCK_BEAK = (232, 158, 60, 255)
 DUCK_EYE = (30, 26, 24, 255)
 
+COW_BODY = (240, 236, 228, 255)
+COW_SHADE = (210, 204, 192, 255)
+COW_SPOT = (48, 40, 36, 255)
+COW_MUZZLE = (222, 176, 168, 255)
+COW_HORN = (214, 200, 178, 255)
+COW_EYE = (30, 26, 24, 255)
+
 
 def s(v):
     return v * SCALE
@@ -313,6 +320,28 @@ def make_duck():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_cow():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # body
+    draw.ellipse([s(7), s(13), s(24), s(26)], fill=COW_BODY)
+    draw.ellipse([s(7), s(19), s(24), s(26)], fill=COW_SHADE)
+    # spots
+    draw.ellipse([s(10), s(15), s(15), s(20)], fill=COW_SPOT)
+    draw.ellipse([s(17), s(20), s(22), s(25)], fill=COW_SPOT)
+    # head
+    draw.ellipse([s(18), s(8), s(28), s(18)], fill=COW_BODY)
+    draw.ellipse([s(20), s(13), s(27), s(18)], fill=COW_MUZZLE)
+    # horns + ears
+    draw.line([(s(20), s(9)), (s(18.5), s(5))], fill=COW_HORN, width=max(1, int(s(0.6))))
+    draw.line([(s(25), s(9)), (s(26.5), s(5))], fill=COW_HORN, width=max(1, int(s(0.6))))
+    # eye
+    draw.ellipse([s(24), s(10.5), s(25.5), s(12)], fill=COW_EYE)
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
@@ -324,7 +353,8 @@ def main():
     make_mouse().save(os.path.join(OUT_DIR, "Mouse.png"))
     make_chicken().save(os.path.join(OUT_DIR, "Chicken.png"))
     make_duck().save(os.path.join(OUT_DIR, "Duck.png"))
-    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken/Duck.png")
+    make_cow().save(os.path.join(OUT_DIR, "Cow.png"))
+    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken/Duck/Cow.png")
 
 
 if __name__ == "__main__":

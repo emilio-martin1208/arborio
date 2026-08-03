@@ -5615,6 +5615,22 @@ while running:
                 ws["_cached_scaled"] = pygame.transform.smoothscale(ws["surface"], target_size)
                 ws["_cached_size"] = target_size
             screen.blit(ws["_cached_scaled"], (ws_dx, ws_dy))
+            #Water reflections: a faint sky-colored wash over every lake,
+            #tracking the same day/night clock the season tint and stars use.
+            # Multiplying a copy of the lake's own cached image (rather than
+            # filling a plain rect) keeps the tint clipped to the lake's
+            # actual irregular silhouette instead of its rectangular bounds.
+            day_frac = day_timer / DAY_LENGTH
+            if day_frac < 0.22 or day_frac >= 0.78:
+                reflect_color = (30, 40, 70)
+            elif day_frac < 0.3 or day_frac >= 0.7:
+                reflect_color = (230, 150, 90)
+            else:
+                reflect_color = (150, 190, 230)
+            reflect_surf = ws["_cached_scaled"].copy()
+            reflect_surf.fill((*reflect_color, 255), special_flags=pygame.BLEND_RGBA_MULT)
+            reflect_surf.set_alpha(70)
+            screen.blit(reflect_surf, (ws_dx, ws_dy))
 
         #Fish: peaceful, swim within their own lake, small bob for a
         #"just below the surface" look.

@@ -1023,6 +1023,7 @@ def trigger_ambient_cue(text):
 
 
 OWL_HOOT_CHANCE = 0.001  # per-frame chance, only tested while it's night
+CRICKET_CHIRP_CHANCE = 0.0015  # per-frame chance, only tested while it's night
 
 
 def is_night(t=None):
@@ -3922,6 +3923,8 @@ while running:
         ambient_cue_cooldown_timer -= dt
     elif location == "farm" and is_night() and random.random() < OWL_HOOT_CHANCE:
         trigger_ambient_cue("🦉 An owl hoots somewhere in the dark...")
+    elif location == "farm" and is_night() and random.random() < CRICKET_CHIRP_CHANCE:
+        trigger_ambient_cue("🦗 Crickets chirp in the grass...")
 
     #Frogs: age out after FROG_LIFETIME, same idea as the mushrooms.
     if frogs:

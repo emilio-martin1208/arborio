@@ -2683,6 +2683,13 @@ for _cow in [a for a in animals if a["species"] == "cow"]:
     if random.random() < 0.35:
         spawn_baby_animal("cow", _cow["x"], _cow["y"])
 
+#Piglets: same baby-animal framework, near roughly half the pigs (pigs tend
+#to have more young underfoot than a single calf/lamb) — always eligible
+#for zoomies, standing in for "chasing each other".
+for _pig in [a for a in animals if a["species"] == "pig"]:
+    if random.random() < 0.5:
+        spawn_baby_animal("pig", _pig["x"], _pig["y"])
+
 #The birdhouse's own perching bird — placed once, right next to it, using
 #the same dict shape spawn_animal builds so it wanders/renders identically.
 animals.append({
@@ -4285,7 +4292,7 @@ while running:
             if baby["timer"] <= 0:
                 #Calves occasionally get a burst of "zoomies" — a farther,
                 #faster dash instead of the usual short wandering hop.
-                zoomie = baby["species"] == "cow" and random.random() < 0.3
+                zoomie = baby["species"] in ("cow", "pig") and random.random() < 0.3
                 dash = 3.0 if zoomie else 1.2
                 tx = max(0, min(WORLD_W - 1, baby["x"] + random.uniform(-dash, dash)))
                 ty = max(0, min(WORLD_H - 1, baby["y"] + random.uniform(-dash, dash)))

@@ -512,6 +512,26 @@ def make_ward():
     return c.resize((w, h), Image.NEAREST)
 
 
+def make_scarecrow():
+    """1-tile post-and-crossbar scarecrow — straw hat, sack head, patched shirt."""
+    c = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    d = ImageDraw.Draw(c)
+    post = (120, 84, 52, 255)
+    sack = (214, 188, 138, 255)
+    shirt = (156, 66, 56, 255)
+    patch = (110, 130, 96, 255)
+    hat = (150, 108, 58, 255)
+
+    d.rectangle([s(15), s(14), s(17), s(30)], fill=post)
+    d.line([(s(8), s(17)), (s(24), s(17))], fill=post, width=s(2))
+    d.ellipse([s(11), s(4), s(21), s(14)], fill=sack)
+    d.arc([s(9), s(1), s(23), s(11)], start=180, end=360, fill=hat, width=s(2))
+    d.rectangle([s(9), s(6), s(23), s(8)], fill=hat)
+    d.rectangle([s(10), s(13), s(22), s(22)], fill=shirt)
+    d.rectangle([s(13), s(16), s(17), s(19)], fill=patch)
+    return c.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_boulder().save(os.path.join(OUT_DIR, "Boulder.png"))
     make_wood_icon().save(os.path.join(OUT_DIR, "Wood.png"))
@@ -547,7 +567,8 @@ def main():
     make_orchard_marker().save(os.path.join(OUT_DIR, "OrchardMarker.png"))
     make_watchtower().save(os.path.join(OUT_DIR, "Watchtower.png"))
     make_ward().save(os.path.join(OUT_DIR, "MagicWard.png"))
-    print("wrote all 13 building sprites")
+    make_scarecrow().save(os.path.join(OUT_DIR, "Scarecrow.png"))
+    print("wrote all 14 building sprites")
 
 
 if __name__ == "__main__":

@@ -303,6 +303,7 @@ FARM_BUILDING_IMAGES = {
     "greenhouse": load_image("Greenhouse.png"),
     "beehive": load_image("BeeHive.png"),
     "orchard_marker": load_image("OrchardMarker.png"),
+    "scarecrow": load_image("Scarecrow.png"),
     "watchtower": load_image("Watchtower.png"),
     "magic_ward": load_image("MagicWard.png"),
 }
@@ -709,6 +710,7 @@ FARM_BUILDING_TYPES = {
     "orchard_marker":  {"label": "Orchard Plot",     "category": "Infrastructure","footprint": (1, 1), "cost": {"wood": 10, "emeralds": 10}, "build_days": 1},
     "watchtower":      {"label": "Watchtower",       "category": "Defense",       "footprint": (2, 2), "cost": {"wood": 60, "stone": 20, "emeralds": 45}, "build_days": 2},
     "magic_ward":      {"label": "Magic Ward",       "category": "Defense",       "footprint": (2, 2), "cost": {"stone": 40, "iron": 15, "emeralds": 60}, "build_days": 2},
+    "scarecrow":       {"label": "Scarecrow",        "category": "Defense",       "footprint": (1, 1), "cost": {"wood": 20, "emeralds": 15}, "build_days": 1},
 }
 BUILD_MENU_ORDER = list(FARM_BUILDING_TYPES.keys())
 
@@ -1564,6 +1566,31 @@ frogs = []  # {x, y, life, max_life, hop_phase}
 FROG_LIFETIME = 45.0
 
 
+#Crows: rarely swoop in and steal a ready-to-harvest crop, same "grown ->
+#grass" reset the withered-crop clear uses, just with nothing collected.
+#A built Scarecrow (see FARM_BUILDING_TYPES) wards the whole farm against
+#them, mirroring how Magic Ward wards off raids farm-wide.
+CROW_STEAL_CHANCE = 0.0008  # per-frame, only tested when unprotected grown crops exist
+crows = []  # {x, y, life, max_life} — brief marker where a crow just struck
+CROW_MARKER_LIFETIME = 1.4
+
+
+def maybe_crow_steal():
+    if any_active_building("scarecrow"):
+        return
+    grown_tiles = [(gx, gy) for (gx, gy) in active_crop_tiles if farm[gy][gx]["state"] == "grown"]
+    if not grown_tiles or random.random() > CROW_STEAL_CHANCE:
+        return
+    gx, gy = random.choice(grown_tiles)
+    farm[gy][gx]["state"] = "grass"
+    farm[gy][gx]["timer"] = 0.0
+    farm[gy][gx]["seed"] = None
+    farm[gy][gx]["soil_variant"] = None
+    active_crop_tiles.discard((gx, gy))
+    crows.append({"x": gx, "y": gy, "life": 0.0, "max_life": CROW_MARKER_LIFETIME})
+    trigger_ambient_cue("\U0001F426‍⬛ A crow swoops in and steals a crop!")
+
+
 def spawn_frogs_near_ponds():
     spawned_any = False
     for shape in water_shapes:
@@ -1972,6 +1999,7 @@ def get_building_panel_options(b):
             "orchard_marker": "Apple/Grape here auto-replant after harvest.",
             "watchtower": "Warns of and reduces farm raids.",
             "magic_ward": "Wards the whole farm against raids.",
+            "scarecrow": "Keeps crows from stealing your crops.",
         }
         options.append({"kind": "info", "label": descriptions.get(b["type"], "A working part of the farm.")})
 
@@ -3841,6 +3869,14 @@ while running:
             frog["life"] += dt
         frogs[:] = [f for f in frogs if f["life"] < f["max_life"]]
 
+    #Crows: only worth checking while there's actually something to steal.
+    if location == "farm" and active_crop_tiles:
+        maybe_crow_steal()
+    if crows:
+        for crow in crows:
+            crow["life"] += dt
+        crows[:] = [c for c in crows if c["life"] < c["max_life"]]
+
     #Age out temporary world collectibles (e.g. post-rain mushrooms) that
     #were never picked up — permanent ones (clovers) have max_life=None.
     if world_collectibles:
@@ -4886,6 +4922,24 @@ while running:
                               (dfly_draw_x, dfly_draw_y + body_len // 2), 2)
             pygame.draw.line(screen, (110, 200, 195),
                               (dfly_draw_x - wing_span, dfly_draw_y), (dfly_draw_x + wing_span, dfly_draw_y), 1)
+
+        #Crows: a brief dark silhouette marking exactly where one just
+        #struck, fading out over CROW_MARKER_LIFETIME.
+        for crow in crows:
+            if crow["x"] < cam_x_i - 1 or crow["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if crow["y"] < cam_y_i - 1 or crow["y"] > cam_y_i + visible_rows + 1:
+                continue
+            fade = max(0.0, 1 - crow["life"] / crow["max_life"])
+            crow_draw_x = (crow["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            crow_draw_y = (crow["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.4 - fade * tile_draw_size * 0.5
+            crow_surf = pygame.Surface((tile_draw_size, tile_draw_size), pygame.SRCALPHA)
+            wing = max(3, int(tile_draw_size * 0.3))
+            alpha = int(255 * fade)
+            pygame.draw.polygon(crow_surf, (30, 30, 30, alpha),
+                                 [(wing, wing * 0.6), (wing * 1.5, wing * 0.2), (wing * 2, wing * 0.6),
+                                  (wing * 1.5, wing * 0.4)])
+            screen.blit(crow_surf, (crow_draw_x - wing, crow_draw_y - wing * 0.5))
 
         #Falling leaves: small fading dots drifting down from deciduous
         #trees, colored to match that tree's canopy

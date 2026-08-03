@@ -48,6 +48,12 @@ SQUIRREL_SHADE = (144, 76, 42, 255)
 SQUIRREL_BELLY = (236, 220, 196, 255)
 SQUIRREL_EYE = (30, 26, 24, 255)
 
+CAT_BODY = (150, 138, 130, 255)
+CAT_SHADE = (110, 100, 94, 255)
+CAT_BELLY = (222, 214, 204, 255)
+CAT_EYE = (140, 200, 90, 255)
+CAT_INNER_EAR = (222, 170, 168, 255)
+
 
 def s(v):
     return v * SCALE
@@ -201,6 +207,30 @@ def make_squirrel():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_cat():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # tail
+    draw.line([(s(6), s(25)), (s(2), s(14))], fill=CAT_BODY, width=max(1, int(s(1.6))))
+    # body
+    draw.ellipse([s(9), s(16), s(23), s(26)], fill=CAT_BODY)
+    draw.ellipse([s(9), s(21), s(23), s(26)], fill=CAT_SHADE)
+    draw.ellipse([s(12), s(20), s(20), s(26)], fill=CAT_BELLY)
+    # head
+    draw.ellipse([s(17), s(9), s(27), s(19)], fill=CAT_BODY)
+    # ears
+    draw.polygon([(s(18), s(10)), (s(19.5), s(4)), (s(22), s(10))], fill=CAT_BODY)
+    draw.polygon([(s(19), s(9)), (s(20), s(6)), (s(21), s(9))], fill=CAT_INNER_EAR)
+    draw.polygon([(s(23), s(10)), (s(24.5), s(4)), (s(27), s(10))], fill=CAT_BODY)
+    draw.polygon([(s(24), s(9)), (s(25), s(6)), (s(26), s(9))], fill=CAT_INNER_EAR)
+    # eyes
+    draw.ellipse([s(21), s(12.5), s(22.5), s(14)], fill=CAT_EYE)
+    draw.ellipse([s(24), s(12.5), s(25.5), s(14)], fill=CAT_EYE)
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
@@ -208,7 +238,8 @@ def main():
     make_deer().save(os.path.join(OUT_DIR, "Deer.png"))
     make_hedgehog().save(os.path.join(OUT_DIR, "Hedgehog.png"))
     make_squirrel().save(os.path.join(OUT_DIR, "Squirrel.png"))
-    print("wrote Rabbit.png, Bird.png, Fox.png, Deer.png, Hedgehog.png, Squirrel.png")
+    make_cat().save(os.path.join(OUT_DIR, "Cat.png"))
+    print("wrote Rabbit.png, Bird.png, Fox.png, Deer.png, Hedgehog.png, Squirrel.png, Cat.png")
 
 
 if __name__ == "__main__":

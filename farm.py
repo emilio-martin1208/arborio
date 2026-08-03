@@ -973,6 +973,13 @@ FARM_BLOCKED_TILES.add(weather_board_pos)
 bench_pos = (HOUSE_POS[0] + 2, DOOR_ROW + 2)
 FARM_BLOCKED_TILES.add(bench_pos)
 
+#Wishing well: a coin toss for a random payout, once per in-game day — the
+#house's own version of forgotten_well's fixed one-time discovery.
+wishing_well_pos = (HOUSE_POS[0] + 4, DOOR_ROW + 2)
+FARM_BLOCKED_TILES.add(wishing_well_pos)
+wishing_well_used_day = 0
+WISHING_WELL_COST = 3
+
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
 INTERIOR_W, INTERIOR_H = 6, 5
@@ -4934,6 +4941,26 @@ while running:
                     market_message = f"Weather Board: {season_for_day(day)} — {sky}"
                     market_message_timer = 2.6
 
+            # Tossing a coin in the wishing well (standing on it, press E) —
+            # once per day, a small cost for a random payout.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e and (player_x, player_y) == wishing_well_pos:
+                    if wishing_well_used_day == day:
+                        market_message, market_message_timer = "The well feels quiet. Try again tomorrow.", 2.0
+                    elif emeralds < WISHING_WELL_COST:
+                        market_message, market_message_timer = "Not enough emeralds to make a wish!", 2.0
+                    else:
+                        emeralds -= WISHING_WELL_COST
+                        wishing_well_used_day = day
+                        payout = random.choice([0, 0, WISHING_WELL_COST, WISHING_WELL_COST * 2,
+                                                 WISHING_WELL_COST * 5])
+                        emeralds += payout
+                        if payout == 0:
+                            market_message = "You toss a coin in... nothing happens."
+                        else:
+                            market_message = f"Your wish comes true! +{payout} emeralds."
+                        market_message_timer = 2.6
+
             # Discovering a world landmark (standing on it, press E) — a
             # one-time thing, unlike collectibles, so revisiting does nothing.
             if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
@@ -5835,6 +5862,18 @@ while running:
         pygame.draw.rect(screen, bench_wood,
                           (bn_draw_x + tile_draw_size * 0.77, bn_draw_y + tile_draw_size * 0.3,
                            tile_draw_size * 0.08, tile_draw_size * 0.32))
+
+        #Wishing well: a small stone ring with dark water and a peaked roof.
+        ww_draw_x = (wishing_well_pos[0] - cam_x) * tile_draw_size
+        ww_draw_y = (wishing_well_pos[1] - cam_y) * tile_draw_size
+        ww_r = tile_draw_size * 0.28
+        ww_cx = ww_draw_x + tile_draw_size * 0.5
+        ww_cy = ww_draw_y + tile_draw_size * 0.6
+        pygame.draw.circle(screen, (150, 146, 140), (int(ww_cx), int(ww_cy)), int(ww_r))
+        pygame.draw.circle(screen, (30, 40, 60), (int(ww_cx), int(ww_cy)), int(ww_r * 0.65))
+        pygame.draw.polygon(screen, (140, 60, 50),
+                             [(ww_cx - ww_r, ww_cy - ww_r * 0.9), (ww_cx, ww_cy - ww_r * 1.7),
+                              (ww_cx + ww_r, ww_cy - ww_r * 0.9)])
 
         #Outposts / marketplaces: same bottom-anchored, 2-tiles-tall technique as the house
         for outpost in outposts:

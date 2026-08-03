@@ -1161,6 +1161,12 @@ meteor_shower_day = None
 METEOR_SHOWER_CHANCE = 0.1
 METEOR_SHOWER_MULT = 8.0
 
+#Aurora: rare, winter-only night-sky ribbons — decided once per night like
+#the eclipse/meteor shower, but gated to the Winter season.
+aurora_active = False
+aurora_day = None
+AURORA_CHANCE = 0.12
+
 
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
@@ -4548,6 +4554,16 @@ while running:
     elif not is_night():
         meteor_shower_active = False
 
+    #Aurora: decided once per winter night.
+    if location == "farm" and is_night() and season_for_day(day) == "Winter":
+        if aurora_day != day:
+            aurora_day = day
+            aurora_active = random.random() < AURORA_CHANCE
+            if aurora_active:
+                trigger_ambient_cue("🌌 An aurora ripples across the winter sky...")
+    elif not is_night() or season_for_day(day) != "Winter":
+        aurora_active = False
+
     #Bubbles: a rare rising bubble spawned from a random pond tile.
     if location == "farm" and water_shapes and random.random() < BUBBLE_CHANCE:
         shape = random.choice(water_shapes)
@@ -6744,6 +6760,20 @@ while running:
         moon_surf = pygame.Surface((moon_r * 2 + 4, moon_r * 2 + 4), pygame.SRCALPHA)
         pygame.draw.circle(moon_surf, (*moon_color, moon_alpha), (moon_r + 2, moon_r + 2), moon_r)
         screen.blit(moon_surf, (WIDTH - 60 - moon_r, 40 - moon_r))
+
+    #Aurora: a few soft, wavy translucent ribbons across the top of the
+    #screen — winter-only, and rare even then.
+    if location == "farm" and aurora_active:
+        aurora_surf = pygame.Surface((WIDTH, 140), pygame.SRCALPHA)
+        band_colors = [(90, 220, 160), (110, 180, 220), (170, 130, 220)]
+        for bi, color in enumerate(band_colors):
+            points = []
+            for px in range(0, WIDTH + 20, 20):
+                wave_y = 30 + bi * 28 + math.sin(current_ticks * 0.0006 + px * 0.02 + bi * 2) * 18
+                points.append((px, wave_y))
+            if len(points) > 1:
+                pygame.draw.lines(aurora_surf, (*color, 90), False, points, 10)
+        screen.blit(aurora_surf, (0, 0))
 
     #Shooting stars: a bright head with a fading tail along its direction
     #of travel — click one before it burns out for a random seed

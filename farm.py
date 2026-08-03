@@ -3467,6 +3467,29 @@ spawn_wandering_npc("hermit", "The Hermit",
 spawn_wandering_npc("mail_carrier", "Mail Carrier",
                      "Special delivery! Glad I caught you.",
                      count=3)
+_fisherman_stories = [
+    "Old Fisherman: Caught one THIS big once, right off that shore over there.",
+    "Old Fisherman: Fish bite best right after it rains, mark my words.",
+    "Old Fisherman: Been fishing these waters since before you were born.",
+]
+for (fish_lake_x, fish_lake_y) in random.sample(water_bodies, min(6, len(water_bodies))):
+    for _fisherman_attempt in range(50):
+        fx = fish_lake_x + random.randint(-7, 7)
+        fy = fish_lake_y + random.randint(-7, 7)
+        if not (0 <= fx < WORLD_W and 0 <= fy < WORLD_H):
+            continue
+        if farm[fy][fx]["state"] != "grass" or (fx, fy) in FARM_BLOCKED_TILES:
+            continue
+        sprite_name = random.choice(VILLAGER_NAMES)
+        villagers.append({
+            "name": "Old Fisherman", "frames": VILLAGER_FRAMES_BY_NAME[sprite_name],
+            "home_x": float(fx), "home_y": float(fy),
+            "x": float(fx), "y": float(fy), "target_x": float(fx), "target_y": float(fy),
+            "facing": "down", "wandering": False, "timer": random.uniform(0.0, 3.0),
+            "walk_timer": 0.0, "frame_index": 0,
+            "greeting": random.choice(_fisherman_stories), "role": "fisherman",
+        })
+        break
 
 
 def purify_around_ruin(ruin):

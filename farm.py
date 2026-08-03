@@ -1209,6 +1209,15 @@ animal_tracks = []  # {x, y, life, max_life}
 ANIMAL_TRACK_LIFETIME = 4.0
 ANIMAL_TRACK_CHANCE = 0.03  # rolled once per frame an animal is actually moving
 
+#Thunderstorm power outage: a rare, more severe version of ordinary night
+#rain — a lightning flash effect plus every production building's processing
+#timer pausing for the duration, on top of the usual rain particles/mushrooms.
+power_outage_active = False
+power_outage_timer = 0.0
+POWER_OUTAGE_CHANCE = 0.2  # rolled once, each time a rain shower starts at night
+POWER_OUTAGE_DURATION = 10.0
+lightning_flash_timer = 0.0
+
 
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
@@ -4548,6 +4557,10 @@ while running:
                      "speed": random.uniform(420, 620), "length": random.uniform(10, 18)}
                     for _ in range(RAIN_DROP_COUNT)
                 ]
+                if is_night() and random.random() < POWER_OUTAGE_CHANCE:
+                    power_outage_active = True
+                    power_outage_timer = 0.0
+                    trigger_ambient_cue("⚡ Thunder cracks and the lights flicker out...")
 
     if raining:
         for drop in rain_drops:
@@ -4558,6 +4571,15 @@ while running:
                 drop["x"] = random.uniform(0, WIDTH)
             if drop["x"] < -20:
                 drop["x"] = WIDTH + 20
+
+    if power_outage_active:
+        power_outage_timer += dt
+        if power_outage_timer >= POWER_OUTAGE_DURATION or not raining:
+            power_outage_active = False
+        elif random.random() < 0.02:
+            lightning_flash_timer = 0.15
+    if lightning_flash_timer > 0:
+        lightning_flash_timer = max(0.0, lightning_flash_timer - dt)
 
     if snowing:
         for flake in snow_flakes:
@@ -5628,7 +5650,7 @@ while running:
                 recompute_farm_tier()
         elif b["stage"] == "active":
             b["condition"] = max(0.0, b["condition"] - CONDITION_DECAY_PER_DAY * (dt / DAY_LENGTH))
-            if b["processing"] is not None and b["processing"]["time_left"] > 0:
+            if b["processing"] is not None and b["processing"]["time_left"] > 0 and not power_outage_active:
                 b["processing"]["time_left"] = max(0.0, b["processing"]["time_left"] - dt)
             if b["type"] == "beehive":
                 b["_honey_timer"] += dt
@@ -6928,6 +6950,17 @@ while running:
         fog_surf = pygame.Surface((WIDTH, HEIGHT - UI_BAR_HEIGHT), pygame.SRCALPHA)
         fog_surf.fill((225, 225, 220, int(110 * fog_strength)))
         screen.blit(fog_surf, (0, 0))
+
+    #Thunderstorm power outage: extra darkness on top of ordinary rain, plus
+    #a brief white flash whenever lightning strikes.
+    if location == "farm" and power_outage_active:
+        outage_overlay = pygame.Surface((WIDTH, HEIGHT - UI_BAR_HEIGHT), pygame.SRCALPHA)
+        outage_overlay.fill((5, 5, 15, 90))
+        screen.blit(outage_overlay, (0, 0))
+        if lightning_flash_timer > 0:
+            flash_overlay = pygame.Surface((WIDTH, HEIGHT - UI_BAR_HEIGHT), pygame.SRCALPHA)
+            flash_overlay.fill((255, 255, 255, int(200 * (lightning_flash_timer / 0.15))))
+            screen.blit(flash_overlay, (0, 0))
 
     #Bird migration: each bird is just a small "M" wingbeat mark.
     if location == "farm" and migrating_flock:

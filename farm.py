@@ -1067,6 +1067,7 @@ COLLECTIBLE_COLORS = {
     "lucky_penny": (200, 130, 60),
     "golden_flower": (240, 200, 40),
     "acorn": (140, 96, 54),
+    "pinecone": (110, 84, 48),
 }
 COLLECTIBLE_MESSAGES = {
     "four_leaf_clover": "A four-leaf clover! Lucky find (+15 emeralds).",
@@ -1082,6 +1083,7 @@ COLLECTIBLE_MESSAGES = {
     "lucky_penny": "Found a lucky penny (+2 emeralds).",
     "golden_flower": "A rare golden flower, glowing faintly! (+40 emeralds)",
     "acorn": "Picked up an acorn (+2 emeralds).",
+    "pinecone": "Picked up a pinecone (+2 emeralds).",
 }
 MUSHROOM_LIFETIME = 90.0  # seconds before an uncollected post-rain mushroom withers
 
@@ -1184,6 +1186,8 @@ def collect_world_item(kind):
     elif kind == "golden_flower":
         emeralds += 40
     elif kind == "acorn":
+        emeralds += 2
+    elif kind == "pinecone":
         emeralds += 2
 
 #Tree spawn
@@ -3273,6 +3277,7 @@ spawn_collectible_scattered("treasure_map", 10, biomes=("desert", "jungle"))
 spawn_collectible_scattered("lucky_penny", 80, biomes=None)
 spawn_collectible_scattered("golden_flower", 6, biomes=("meadow",))
 spawn_collectible_scattered("acorn", 70, biomes=("meadow", "maple"))
+spawn_collectible_scattered("pinecone", 50, biomes=("tundra", "jungle"))
 
 
 def purify_around_ruin(ruin):

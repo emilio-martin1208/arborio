@@ -3503,6 +3503,9 @@ spawn_wandering_npc("beekeeper", "Beekeeper",
 spawn_wandering_npc("clockmaker", "Clockmaker",
                      "Every gear has its place, just like every hour has its purpose.",
                      count=2)
+spawn_wandering_npc("carpenter", "Carpenter",
+                     "Saw a few loose boards on your way in — let me take a look.",
+                     count=2)
 
 
 def purify_around_ruin(ruin):
@@ -4488,7 +4491,19 @@ while running:
                             if facing_pos == (round(villager["x"]), round(villager["y"])):
                                 dialogue_open = True
                                 dialogue_text = f"{villager['name']}: {villager['greeting']}"
-                                if villager.get("role") == "mail_carrier":
+                                if villager.get("role") == "carpenter":
+                                    #Carpenter: a free top-up on every worn
+                                    #building's condition, once per visit.
+                                    repaired_any = False
+                                    for b in farm_buildings:
+                                        if b["condition"] < 100.0:
+                                            b["condition"] = min(100.0, b["condition"] + 20.0)
+                                            repaired_any = True
+                                    if repaired_any:
+                                        dialogue_text += " (Patches up your buildings a bit: +20 condition!)"
+                                    else:
+                                        dialogue_text += " (Nothing needs fixing right now.)"
+                                elif villager.get("role") == "mail_carrier":
                                     #Mail Carrier: a small surprise gift of
                                     #emeralds each time you catch them.
                                     gift = random.randint(5, 15)

@@ -5883,6 +5883,15 @@ while running:
             pygame.draw.rect(screen, outfit_color,
                               (v_draw_x + tile_draw_size * 0.32, v_draw_y + v_breath + tile_draw_size * 0.62,
                                tile_draw_size * 0.36, tile_draw_size * 0.14))
+            #NPC umbrellas: villagers pop one open whenever it's raining.
+            if raining:
+                um_cx = v_draw_x + tile_draw_size * 0.5
+                um_cy = v_draw_y + v_breath - tile_draw_size * 0.08
+                pygame.draw.arc(screen, (70, 90, 160),
+                                 (um_cx - tile_draw_size * 0.32, um_cy - tile_draw_size * 0.22,
+                                  tile_draw_size * 0.64, tile_draw_size * 0.4), math.pi, 2 * math.pi, 3)
+                pygame.draw.line(screen, (70, 90, 160), (um_cx, um_cy),
+                                  (um_cx, um_cy + tile_draw_size * 0.18), 2)
 
         #Peaceful animals: a small hop/bob while moving, flipped to face travel direction
         for animal in animals:

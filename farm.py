@@ -2550,6 +2550,26 @@ def growth_rate_at(x, y):
 #Peaceful animals: wander idly, flee a little if the player gets close
 animals = []
 
+#Idle behaviors: while genuinely idle (not moving/fleeing), an animal
+#occasionally plays a short species-specific action instead of just
+#standing still — one shared timer + dispatch, so each new behavior from
+#here on is just a pool entry (IDLE_ACTIONS_BY_SPECIES) plus a render case
+#in draw_idle_action, not a whole new animal system.
+IDLE_ACTIONS_BY_SPECIES = {
+    "chicken": ["peck"],
+}
+IDLE_ACTION_CHANCE = 0.01  # rolled once per frame an animal is truly idle with no action already playing
+IDLE_ACTION_DURATION = 1.2
+
+
+def draw_idle_action(screen, species, action, cx, cy, tile_draw_size, ticks):
+    """Dispatch point for an idle animal's current action, drawn centered
+    on (cx, cy) in screen pixels — kept separate from the main animal
+    sprite blit so it layers cleanly on top."""
+    if species == "chicken" and action == "peck":
+        peck_bob = abs(math.sin(ticks * 0.02)) * tile_draw_size * 0.12
+        pygame.draw.circle(screen, (196, 170, 120), (int(cx), int(cy + tile_draw_size * 0.35 + peck_bob)), 2)
+
 
 def spawn_animal():
     species = random.choice(list(ANIMAL_IMAGES.keys()))
@@ -2561,6 +2581,7 @@ def spawn_animal():
                 "target_x": float(x), "target_y": float(y),
                 "state": "idle", "timer": random.uniform(0.0, 3.0),
                 "facing_right": True,
+                "idle_action": None, "idle_action_timer": 0.0,
             })
             return
 
@@ -2574,6 +2595,7 @@ animals.append({
     "species": "bird", "x": float(birdhouse_pos[0]), "y": float(birdhouse_pos[1] - 1),
     "target_x": float(birdhouse_pos[0]), "target_y": float(birdhouse_pos[1] - 1),
     "state": "idle", "timer": random.uniform(0.0, 3.0), "facing_right": True,
+    "idle_action": None, "idle_action_timer": 0.0,
 })
 
 #Marketplace: small outposts scattered around, larger marketplaces further
@@ -4094,6 +4116,15 @@ while running:
                 animal["state"] = "fleeing"
 
         if animal["state"] == "idle":
+            if animal["idle_action"] is not None:
+                animal["idle_action_timer"] -= dt
+                if animal["idle_action_timer"] <= 0:
+                    animal["idle_action"] = None
+            elif random.random() < IDLE_ACTION_CHANCE:
+                pool = IDLE_ACTIONS_BY_SPECIES.get(animal["species"])
+                if pool:
+                    animal["idle_action"] = random.choice(pool)
+                    animal["idle_action_timer"] = IDLE_ACTION_DURATION
             animal["timer"] -= dt
             if animal["timer"] <= 0:
                 for _ in range(8):
@@ -6712,6 +6743,10 @@ while running:
             sprite_set = ANIMAL_IMAGES if animal["facing_right"] else ANIMAL_IMAGES_FLIPPED
             animal_scaled = pygame.transform.scale(sprite_set[animal["species"]], (tile_draw_size, tile_draw_size))
             screen.blit(animal_scaled, (a_draw_x, a_draw_y - bob))
+            if animal.get("idle_action"):
+                draw_idle_action(screen, animal["species"], animal["idle_action"],
+                                  a_draw_x + tile_draw_size * 0.5, a_draw_y + tile_draw_size * 0.5,
+                                  tile_draw_size, current_ticks)
 
         #Farm raiders: demons that wandered up through a ruin, same look and
         #behavior as their underworld kin

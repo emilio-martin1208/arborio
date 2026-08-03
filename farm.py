@@ -1265,6 +1265,7 @@ spirit_encounters = []  # {x, y, vx, vy, life, max_life, kind, phase}
 
 
 FOREST_SPIRIT_CHANCE = 0.0004  # per-frame, only tested at dawn in forest biomes
+GHOST_LANTERN_CHANCE = 0.0003  # per-frame, only tested at midnight
 
 
 def spawn_spirit_encounter(kind, x, y, max_life):
@@ -3875,6 +3876,14 @@ while running:
         spawn_spirit_encounter("forest_spirit", player_x + random.uniform(-5, 5),
                                player_y + random.uniform(-5, 5), max_life=8.0)
         trigger_ambient_cue("A forest spirit drifts silently between the trees...")
+
+    #Ghost lantern: a single light glowing with no one carrying it,
+    #seen only in the dead of night — anywhere on the mainland.
+    if location == "farm" and is_midnight() and random.random() < GHOST_LANTERN_CHANCE:
+        spawn_spirit_encounter("ghost_lantern", player_x + random.uniform(-6, 6),
+                               player_y + random.uniform(-6, 6), max_life=10.0)
+        trigger_ambient_cue("A lantern glows in the darkness, with no one holding it...")
+
     if spirit_encounters:
         for sp in spirit_encounters:
             sp["life"] += dt
@@ -5485,7 +5494,7 @@ while running:
 
         #Spirit encounters: a soft glow that fades in, holds, then fades
         #back out — dispatch on kind for color/shape, shared fade math.
-        SPIRIT_COLORS = {"forest_spirit": (150, 220, 160)}
+        SPIRIT_COLORS = {"forest_spirit": (150, 220, 160), "ghost_lantern": (255, 200, 110)}
         for sp in spirit_encounters:
             if sp["x"] < cam_x_i - 1 or sp["x"] > cam_x_i + visible_cols + 1:
                 continue

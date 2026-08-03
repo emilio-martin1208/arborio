@@ -5008,6 +5008,15 @@ while running:
                 if tile["state"] == "rock":
                     boulder_scaled = pygame.transform.scale(IMG_BOULDER, (tile_draw_size, tile_draw_size))
                     screen.blit(boulder_scaled, (draw_x, draw_y))
+                    #Moss patch: a deterministic per-tile pick (no extra state
+                    #to track) so a given boulder is always mossy or not,
+                    #biased to the damper meadow/jungle biomes.
+                    if tile["biome"] in ("meadow", "jungle") and (x * 7 + y * 13) % 5 == 0:
+                        moss_w = int(tile_draw_size * 0.42)
+                        moss_h = int(tile_draw_size * 0.22)
+                        pygame.draw.ellipse(screen, (74, 122, 62),
+                                             (draw_x + tile_draw_size * 0.3, draw_y + tile_draw_size * 0.55,
+                                              moss_w, moss_h))
 
                 # --- Kingdom wall: flush 1-tile sprite, tiles repeat to form
                 # the perimeter (the gate itself is drawn separately, once

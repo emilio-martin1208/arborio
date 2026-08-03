@@ -3461,6 +3461,9 @@ spawn_wandering_npc("merchant", "Traveling Merchant",
 spawn_wandering_npc("musician", "Wandering Musician",
                      "Care for a tune? Music always sounds better out in the open air.",
                      count=3)
+spawn_wandering_npc("hermit", "The Hermit",
+                     "I came out here for the quiet. Please don't tell anyone where I am.",
+                     count=2, biomes=("maple", "jungle"))
 
 
 def purify_around_ruin(ruin):

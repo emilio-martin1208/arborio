@@ -79,6 +79,11 @@ COW_MUZZLE = (222, 176, 168, 255)
 COW_HORN = (214, 200, 178, 255)
 COW_EYE = (30, 26, 24, 255)
 
+SHEEP_WOOL = (238, 234, 226, 255)
+SHEEP_WOOL_SHADE = (212, 206, 194, 255)
+SHEEP_FACE = (60, 52, 48, 255)
+SHEEP_EYE = (20, 18, 16, 255)
+
 
 def s(v):
     return v * SCALE
@@ -342,6 +347,22 @@ def make_cow():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_sheep():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # woolly body — clusters of overlapping circles for a bumpy silhouette
+    for (cx, cy, r) in [(12, 18, 6), (17, 15, 7), (22, 18, 6), (14, 22, 6), (20, 22, 6)]:
+        draw.ellipse([s(cx - r), s(cy - r), s(cx + r), s(cy + r)], fill=SHEEP_WOOL)
+    for (cx, cy, r) in [(14, 22, 5), (20, 22, 5)]:
+        draw.ellipse([s(cx - r), s(cy - r), s(cx + r), s(cy + r)], fill=SHEEP_WOOL_SHADE)
+    # face
+    draw.ellipse([s(20), s(11), s(27), s(18)], fill=SHEEP_FACE)
+    draw.ellipse([s(23.5), s(13), s(25), s(14.5)], fill=SHEEP_EYE)
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
@@ -354,7 +375,8 @@ def main():
     make_chicken().save(os.path.join(OUT_DIR, "Chicken.png"))
     make_duck().save(os.path.join(OUT_DIR, "Duck.png"))
     make_cow().save(os.path.join(OUT_DIR, "Cow.png"))
-    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken/Duck/Cow.png")
+    make_sheep().save(os.path.join(OUT_DIR, "Sheep.png"))
+    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken/Duck/Cow/Sheep.png")
 
 
 if __name__ == "__main__":

@@ -1266,6 +1266,7 @@ LANDMARK_REWARDS = {
     "forgotten_well": 20,
     "cave_entrance": 22,
     "forest_shrine": 28,
+    "achievement_statue": 20,
 }
 LANDMARK_MESSAGES = {
     "fairy_circle": "You've stumbled into a fairy circle! (+25 emeralds)",
@@ -1275,6 +1276,7 @@ LANDMARK_MESSAGES = {
     "forgotten_well": "A forgotten well — someone tossed a few coins in (+20 emeralds).",
     "cave_entrance": "You peek into a dark cave entrance (+22 emeralds).",
     "forest_shrine": "A quiet forest shrine, offerings still left behind (+28 emeralds).",
+    "achievement_statue": "A statue honoring a legendary farmer of ages past (+20 emeralds).",
 }
 
 
@@ -1291,6 +1293,24 @@ def spawn_landmark_scattered(kind, count, biomes=None):
             continue
         world_landmarks.append({"x": x, "y": y, "kind": kind, "discovered": False})
         placed += 1
+
+
+def spawn_landmark_near_points(kind, points, per_point=1, radius=5):
+    """Same idea as spawn_collectible_near_points, but appends to
+    world_landmarks — for landmarks tied to a settlement (achievement
+    statues near market outposts) rather than scattered across a biome."""
+    for (cx, cy) in points:
+        placed = 0
+        attempts = 0
+        while placed < per_point and attempts < per_point * 40:
+            attempts += 1
+            x, y = cx + random.randint(-radius, radius), cy + random.randint(-radius, radius)
+            if not (0 <= x < WORLD_W and 0 <= y < WORLD_H):
+                continue
+            if farm[y][x]["state"] != "grass" or (x, y) in FARM_BLOCKED_TILES:
+                continue
+            world_landmarks.append({"x": x, "y": y, "kind": kind, "discovered": False})
+            placed += 1
 
 
 def discover_landmark(lm):
@@ -1368,6 +1388,12 @@ def draw_landmark(screen, kind, cx, cy, tile_draw_size, discovered):
         cave_w, cave_h = tile_draw_size * 0.6, tile_draw_size * 0.5
         pygame.draw.ellipse(screen, (78, 74, 78), (int(cx - cave_w / 2), int(cy - cave_h / 2), int(cave_w), int(cave_h)))
         pygame.draw.ellipse(screen, (18, 16, 20), (int(cx - cave_w * 0.3), int(cy - cave_h * 0.25), int(cave_w * 0.6), int(cave_h * 0.6)))
+    elif kind == "achievement_statue":
+        base_w, base_h = tile_draw_size * 0.5, tile_draw_size * 0.16
+        pygame.draw.rect(screen, (150, 148, 150), (int(cx - base_w / 2), int(cy), int(base_w), int(base_h)))
+        pygame.draw.rect(screen, (200, 198, 196),
+                          (int(cx - base_w * 0.25), int(cy - base_h * 2.4), int(base_w * 0.5), int(base_h * 2.4)))
+        pygame.draw.circle(screen, (200, 198, 196), (int(cx), int(cy - base_h * 2.7)), max(1, int(base_h * 0.6)))
     elif kind == "forest_shrine":
         base_w, base_h = tile_draw_size * 0.5, tile_draw_size * 0.2
         pygame.draw.rect(screen, (140, 130, 120), (int(cx - base_w / 2), int(cy), int(base_w), int(base_h)))
@@ -3491,6 +3517,9 @@ for _ in range(12):
     spawn_ruin()
 
 spawn_collectible_near_points("ancient_coin", [(r["x"], r["y"]) for r in ruins], per_point=2, radius=6)
+spawn_landmark_near_points("achievement_statue",
+                            [(o["x"], o["y"]) for o in outposts if o["kind"] == "marketplace"],
+                            per_point=1, radius=5)
 spawn_collectible_near_points("glass_bottle", water_bodies, per_point=1, radius=5)
 spawn_collectible_scattered("treasure_map", 10, biomes=("desert", "jungle"))
 spawn_collectible_scattered("lucky_penny", 80, biomes=None)

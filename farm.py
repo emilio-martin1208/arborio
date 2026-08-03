@@ -5024,6 +5024,17 @@ while running:
                 if tile["state"] == "wall":
                     wall_scaled = pygame.transform.scale(IMG_WALL_STONE, (tile_draw_size, tile_draw_size))
                     screen.blit(wall_scaled, (draw_x, draw_y))
+                    #Vines: same deterministic per-tile pick as the boulder
+                    #moss, draped down from the top of jungle-kingdom walls.
+                    if tile["biome"] == "jungle" and (x * 11 + y * 3) % 4 == 0:
+                        vine_x = draw_x + tile_draw_size * (0.3 + 0.4 * ((x + y) % 2))
+                        vine_len = tile_draw_size * 0.7
+                        pygame.draw.line(screen, (58, 108, 54), (vine_x, draw_y),
+                                          (vine_x, draw_y + vine_len), max(1, tile_draw_size // 16))
+                        for leaf_t in (0.3, 0.6, 0.9):
+                            pygame.draw.circle(screen, (70, 128, 62),
+                                                (int(vine_x), int(draw_y + vine_len * leaf_t)),
+                                                max(1, tile_draw_size // 14))
 
                 # --- Crop growth stage, animated ---
                 if tile["state"] == "grown":

@@ -1064,6 +1064,7 @@ COLLECTIBLE_COLORS = {
     "glass_bottle": (110, 160, 130),
     "message_bottle": (90, 140, 160),
     "treasure_map": (210, 190, 140),
+    "lucky_penny": (200, 130, 60),
 }
 COLLECTIBLE_MESSAGES = {
     "four_leaf_clover": "A four-leaf clover! Lucky find (+15 emeralds).",
@@ -1076,6 +1077,7 @@ COLLECTIBLE_MESSAGES = {
     "glass_bottle": "An old glass bottle washed up on the shore (+5 emeralds).",
     "message_bottle": "A message in a bottle, from some far-off sailor (+15 emeralds).",
     "treasure_map": "An old treasure map, already dug up by someone else (+30 emeralds).",
+    "lucky_penny": "Found a lucky penny (+2 emeralds).",
 }
 MUSHROOM_LIFETIME = 90.0  # seconds before an uncollected post-rain mushroom withers
 
@@ -1173,6 +1175,8 @@ def collect_world_item(kind):
         emeralds += 15
     elif kind == "treasure_map":
         emeralds += 30
+    elif kind == "lucky_penny":
+        emeralds += 2
 
 #Tree spawn
 TREE_INTERVAL = 20.0
@@ -3258,6 +3262,7 @@ for _ in range(12):
 spawn_collectible_near_points("ancient_coin", [(r["x"], r["y"]) for r in ruins], per_point=2, radius=6)
 spawn_collectible_near_points("glass_bottle", water_bodies, per_point=1, radius=5)
 spawn_collectible_scattered("treasure_map", 10, biomes=("desert", "jungle"))
+spawn_collectible_scattered("lucky_penny", 80, biomes=None)
 
 
 def purify_around_ruin(ruin):

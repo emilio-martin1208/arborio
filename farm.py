@@ -4112,6 +4112,27 @@ while running:
     for animal in animals:
         adx, ady = animal["x"] - player_x, animal["y"] - player_y
         dist_to_player = math.hypot(adx, ady)
+        #Chickens are curious rather than skittish — they tag along behind
+        #the player for a few seconds instead of fleeing like everything else.
+        if (location == "farm" and animal["species"] == "chicken" and animal["state"] not in ("following",)
+                and 1.0 < dist_to_player < 3.0 and random.random() < 0.01):
+            animal["state"] = "following"
+            animal["idle_action"] = None
+            animal["timer"] = random.uniform(3.0, 6.0)
+        if animal["state"] == "following":
+            animal["timer"] -= dt
+            fdx, fdy = player_x - animal["x"], player_y - animal["y"]
+            fdist = math.hypot(fdx, fdy)
+            if animal["timer"] <= 0 or fdist < 0.01:
+                animal["state"] = "idle"
+                animal["timer"] = random.uniform(1.5, 4.0)
+            elif fdist > 1.2:
+                step = min(fdist - 1.0, ANIMAL_SPEED["chicken"] * dt)
+                animal["x"] += fdx / fdist * step
+                animal["y"] += fdy / fdist * step
+                if abs(fdx) > 0.01:
+                    animal["facing_right"] = fdx > 0
+            continue
         if location == "farm" and 0.01 < dist_to_player < 1.8 and animal["state"] != "fleeing":
             flee_dist = 3.0
             tx = max(0, min(WORLD_W - 1, animal["x"] + adx / dist_to_player * flee_dist))

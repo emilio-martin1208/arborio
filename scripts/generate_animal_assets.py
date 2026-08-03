@@ -54,6 +54,12 @@ CAT_BELLY = (222, 214, 204, 255)
 CAT_EYE = (140, 200, 90, 255)
 CAT_INNER_EAR = (222, 170, 168, 255)
 
+MOUSE_BODY = (168, 160, 154, 255)
+MOUSE_SHADE = (136, 128, 122, 255)
+MOUSE_BELLY = (230, 224, 216, 255)
+MOUSE_EAR = (220, 190, 190, 255)
+MOUSE_EYE = (30, 26, 24, 255)
+
 
 def s(v):
     return v * SCALE
@@ -231,6 +237,29 @@ def make_cat():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_mouse():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # tail
+    draw.line([(s(9), s(23)), (s(2), s(26))], fill=MOUSE_SHADE, width=max(1, int(s(0.4))))
+    # body
+    draw.ellipse([s(9), s(17), s(22), s(25)], fill=MOUSE_BODY)
+    draw.ellipse([s(11), s(21), s(20), s(25)], fill=MOUSE_BELLY)
+    # head
+    draw.ellipse([s(17), s(13), s(26), s(21)], fill=MOUSE_BODY)
+    # big round ears
+    draw.ellipse([s(17), s(8), s(22), s(13)], fill=MOUSE_BODY)
+    draw.ellipse([s(18), s(9), s(21), s(12)], fill=MOUSE_EAR)
+    draw.ellipse([s(22), s(8), s(27), s(13)], fill=MOUSE_BODY)
+    draw.ellipse([s(23), s(9), s(26), s(12)], fill=MOUSE_EAR)
+    # eye + nose
+    draw.ellipse([s(24), s(15.5), s(25.5), s(17)], fill=MOUSE_EYE)
+    draw.ellipse([s(25.5), s(17.5), s(27), s(19)], fill=(210, 150, 150, 255))
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
@@ -239,7 +268,8 @@ def main():
     make_hedgehog().save(os.path.join(OUT_DIR, "Hedgehog.png"))
     make_squirrel().save(os.path.join(OUT_DIR, "Squirrel.png"))
     make_cat().save(os.path.join(OUT_DIR, "Cat.png"))
-    print("wrote Rabbit.png, Bird.png, Fox.png, Deer.png, Hedgehog.png, Squirrel.png, Cat.png")
+    make_mouse().save(os.path.join(OUT_DIR, "Mouse.png"))
+    print("wrote Rabbit.png, Bird.png, Fox.png, Deer.png, Hedgehog.png, Squirrel.png, Cat.png, Mouse.png")
 
 
 if __name__ == "__main__":

@@ -1159,6 +1159,7 @@ COLLECTIBLE_COLORS = {
     "golden_flower": (240, 200, 40),
     "acorn": (140, 96, 54),
     "pinecone": (110, 84, 48),
+    "leaf_pile": (196, 120, 56),
 }
 COLLECTIBLE_MESSAGES = {
     "four_leaf_clover": "A four-leaf clover! Lucky find (+15 emeralds).",
@@ -1175,6 +1176,7 @@ COLLECTIBLE_MESSAGES = {
     "golden_flower": "A rare golden flower, glowing faintly! (+40 emeralds)",
     "acorn": "Picked up an acorn (+2 emeralds).",
     "pinecone": "Picked up a pinecone (+2 emeralds).",
+    "leaf_pile": "A beetle scurries out of the leaf pile! (+3 emeralds)",
 }
 MUSHROOM_LIFETIME = 90.0  # seconds before an uncollected post-rain mushroom withers
 
@@ -1280,6 +1282,8 @@ def collect_world_item(kind):
         emeralds += 2
     elif kind == "pinecone":
         emeralds += 2
+    elif kind == "leaf_pile":
+        emeralds += 3
 
 
 #World landmarks: unlike world_collectibles (a single dot you sweep up),
@@ -4874,6 +4878,12 @@ while running:
                     season_after = season_for_day(day)
                     if season_after != season_before:
                         day_popup_queue.append({"text": f"A new season begins: {season_after}", "timer": 0.0})
+                        #Leaf piles: appear for the length of Fall, then
+                        #clear out again once the season turns over.
+                        if season_after == "Fall":
+                            spawn_collectible_scattered("leaf_pile", 40, biomes=("maple", "meadow"))
+                        elif season_before == "Fall":
+                            world_collectibles[:] = [c for c in world_collectibles if c["kind"] != "leaf_pile"]
                     else:
                         day_popup_queue.append({"text": f"Day {day}", "timer": 0.0})
 

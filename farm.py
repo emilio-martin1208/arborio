@@ -2691,6 +2691,13 @@ for _pig in [a for a in animals if a["species"] == "pig"]:
     if random.random() < 0.5:
         spawn_baby_animal("pig", _pig["x"], _pig["y"])
 
+#Foals: same baby-animal framework, near roughly a third of the wild
+#horses — deliberately excluded from the zoomie roll, since "staying
+#close to their mother" is the opposite temperament from a calf/piglet.
+for _horse in [a for a in animals if a["species"] == "wild_horse"]:
+    if random.random() < 0.35:
+        spawn_baby_animal("wild_horse", _horse["x"], _horse["y"])
+
 #The birdhouse's own perching bird — placed once, right next to it, using
 #the same dict shape spawn_animal builds so it wanders/renders identically.
 animals.append({

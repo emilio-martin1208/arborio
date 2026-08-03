@@ -1190,6 +1190,59 @@ def collect_world_item(kind):
     elif kind == "pinecone":
         emeralds += 2
 
+
+#World landmarks: unlike world_collectibles (a single dot you sweep up),
+#these are hidden points of interest you *discover* once — a small
+#multi-shape drawing rather than a plain dot, and a one-time reward/message
+#instead of disappearing from the map. Reuses the same scatter-and-check
+#plumbing pattern so each new kind is a render case + a reward, same as
+#collectibles were.
+world_landmarks = []  # {x, y, kind, discovered}
+LANDMARK_REWARDS = {
+    "fairy_circle": 25,
+}
+LANDMARK_MESSAGES = {
+    "fairy_circle": "You've stumbled into a fairy circle! (+25 emeralds)",
+}
+
+
+def spawn_landmark_scattered(kind, count, biomes=None):
+    placed = 0
+    attempts = 0
+    while placed < count and attempts < count * 60:
+        attempts += 1
+        x = random.randint(0, MAINLAND_W - 1)
+        y = random.randint(0, WORLD_H - 1)
+        if biomes and biome_for(x, y) not in biomes:
+            continue
+        if farm[y][x]["state"] != "grass" or (x, y) in FARM_BLOCKED_TILES:
+            continue
+        world_landmarks.append({"x": x, "y": y, "kind": kind, "discovered": False})
+        placed += 1
+
+
+def discover_landmark(lm):
+    global emeralds
+    if lm["discovered"]:
+        return
+    lm["discovered"] = True
+    emeralds += LANDMARK_REWARDS.get(lm["kind"], 0)
+    trigger_ambient_cue(LANDMARK_MESSAGES.get(lm["kind"], "You've found something here..."))
+
+
+def draw_landmark(screen, kind, cx, cy, tile_draw_size, discovered):
+    """Dispatch point for each landmark kind's small multi-shape drawing,
+    centered on (cx, cy) in screen pixels. Kept as one function (rather than
+    inlining in the render loop) so it can be unit-tested headlessly."""
+    if kind == "fairy_circle":
+        r = tile_draw_size * 0.5
+        for i in range(7):
+            ang = i * (2 * math.pi / 7)
+            spot_x = cx + math.cos(ang) * r
+            spot_y = cy + math.sin(ang) * r * 0.6
+            pygame.draw.circle(screen, (216, 176, 224), (int(spot_x), int(spot_y)), max(1, int(tile_draw_size * 0.06)))
+
+
 #Tree spawn
 TREE_INTERVAL = 20.0
 tree_timer = 0.0
@@ -3278,6 +3331,7 @@ spawn_collectible_scattered("lucky_penny", 80, biomes=None)
 spawn_collectible_scattered("golden_flower", 6, biomes=("meadow",))
 spawn_collectible_scattered("acorn", 70, biomes=("meadow", "maple"))
 spawn_collectible_scattered("pinecone", 50, biomes=("tundra", "jungle"))
+spawn_landmark_scattered("fairy_circle", 10, biomes=("meadow", "sakura"))
 
 
 def purify_around_ruin(ruin):
@@ -4503,6 +4557,15 @@ while running:
                         market_message = COLLECTIBLE_MESSAGES.get(found_item["kind"], "Picked something up!")
                         market_message_timer = 2.6
 
+            # Discovering a world landmark (standing on it, press E) — a
+            # one-time thing, unlike collectibles, so revisiting does nothing.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e:
+                    for lm in world_landmarks:
+                        if lm["x"] == player_x and lm["y"] == player_y and not lm["discovered"]:
+                            discover_landmark(lm)
+                            break
+
             # Paying a kingdom's gate toll (facing it, press E) — a one-time
             # payment; once paid the gate stays open for the rest of the game.
             if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
@@ -5310,6 +5373,17 @@ while running:
                 pygame.draw.circle(glow_surf, (*item_color, 90), (glow_r, glow_r), glow_r)
                 screen.blit(glow_surf, (item_draw_x - glow_r, item_draw_y - glow_r))
             pygame.draw.circle(screen, item_color, (int(item_draw_x), int(item_draw_y)), max(2, tile_draw_size // 8))
+
+        #World landmarks: hidden points of interest, drawn via the
+        #per-kind draw_landmark dispatch instead of a plain dot.
+        for lm in world_landmarks:
+            if lm["x"] < cam_x_i - 1 or lm["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if lm["y"] < cam_y_i - 1 or lm["y"] > cam_y_i + visible_rows + 1:
+                continue
+            lm_cx = (lm["x"] - cam_x) * tile_draw_size + tile_draw_size // 2
+            lm_cy = (lm["y"] - cam_y) * tile_draw_size + tile_draw_size // 2
+            draw_landmark(screen, lm["kind"], lm_cx, lm_cy, tile_draw_size, lm["discovered"])
 
         # --- House exterior: sprite is 2 tiles tall, anchored so its bottom
         # edge sits on the bottom of its 1-tile solid footprint (the roof

@@ -999,6 +999,13 @@ FARM_BLOCKED_TILES.add(compost_pile_pos)
 COMPOST_RADIUS = 3
 COMPOST_GROWTH_MULT = 1.15
 
+#Time capsule: a spot near the house where the player can bury one, once —
+#a small permanent flavor moment rather than a repeatable mechanic.
+time_capsule_pos = (HOUSE_POS[0] + 4, DOOR_ROW + 1)
+FARM_BLOCKED_TILES.add(time_capsule_pos)
+time_capsule_buried = False
+time_capsule_buried_day = None
+
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
 INTERIOR_W, INTERIOR_H = 6, 5
@@ -5046,6 +5053,20 @@ while running:
                             market_message = f"Your wish comes true! +{payout} emeralds."
                         market_message_timer = 2.6
 
+            # Burying the time capsule (standing on it, press E) — a single,
+            # permanent flavor moment rather than a repeatable interaction.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e and (player_x, player_y) == time_capsule_pos:
+                    if time_capsule_buried:
+                        market_message = f"A time capsule rests here, buried on Day {time_capsule_buried_day}."
+                        market_message_timer = 2.6
+                    else:
+                        time_capsule_buried = True
+                        time_capsule_buried_day = day
+                        emeralds += 15
+                        market_message = f"You bury a time capsule for the farm's future! (+15 emeralds, Day {day})"
+                        market_message_timer = 3.0
+
             # Discovering a world landmark (standing on it, press E) — a
             # one-time thing, unlike collectibles, so revisiting does nothing.
             if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
@@ -6060,6 +6081,22 @@ while running:
             pygame.draw.circle(screen, c,
                                 (int(cp_draw_x + tile_draw_size * dx), int(cp_draw_y + tile_draw_size * dy)),
                                 max(1, int(tile_draw_size * 0.06)))
+
+        #Time capsule: a marked patch of disturbed dirt — a small flag once
+        #it's actually been buried, plain earth before that.
+        tc_draw_x = (time_capsule_pos[0] - cam_x) * tile_draw_size
+        tc_draw_y = (time_capsule_pos[1] - cam_y) * tile_draw_size
+        pygame.draw.ellipse(screen, (110, 84, 56),
+                             (tc_draw_x + tile_draw_size * 0.2, tc_draw_y + tile_draw_size * 0.55,
+                              tile_draw_size * 0.6, tile_draw_size * 0.3))
+        if time_capsule_buried:
+            pygame.draw.line(screen, (140, 100, 60),
+                              (tc_draw_x + tile_draw_size * 0.5, tc_draw_y + tile_draw_size * 0.25),
+                              (tc_draw_x + tile_draw_size * 0.5, tc_draw_y + tile_draw_size * 0.55), 2)
+            pygame.draw.polygon(screen, (90, 140, 190),
+                                 [(tc_draw_x + tile_draw_size * 0.5, tc_draw_y + tile_draw_size * 0.25),
+                                  (tc_draw_x + tile_draw_size * 0.72, tc_draw_y + tile_draw_size * 0.32),
+                                  (tc_draw_x + tile_draw_size * 0.5, tc_draw_y + tile_draw_size * 0.39)])
 
         #Outposts / marketplaces: same bottom-anchored, 2-tiles-tall technique as the house
         for outpost in outposts:

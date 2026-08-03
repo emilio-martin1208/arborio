@@ -1008,6 +1008,41 @@ shooting_stars = []  # {sx, sy, vx, vy, life, max_life} in screen pixels
 SHOOTING_STAR_CHANCE = 0.0012  # per-frame spawn chance while it's night
 SHOOTING_STAR_CLICK_RADIUS = 22
 
+#World collectibles: small rare finds scattered (or spawned dynamically)
+#across the map — a shared framework so each new kind (clovers, berries,
+#truffles, geodes, coins, ...) is just a visual + a reward, reusing the
+#same placement/render/collect plumbing instead of one-off systems each.
+world_collectibles = []  # {x, y, kind}
+COLLECTIBLE_COLORS = {
+    "four_leaf_clover": (60, 160, 70),
+}
+COLLECTIBLE_MESSAGES = {
+    "four_leaf_clover": "A four-leaf clover! Lucky find (+15 emeralds).",
+}
+
+
+def spawn_collectible_scattered(kind, count, biomes=None):
+    placed = 0
+    attempts = 0
+    while placed < count and attempts < count * 40:
+        attempts += 1
+        x = random.randint(0, MAINLAND_W - 1)
+        y = random.randint(0, WORLD_H - 1)
+        if biomes and biome_for(x, y) not in biomes:
+            continue
+        if farm[y][x]["state"] != "grass" or (x, y) in FARM_BLOCKED_TILES:
+            continue
+        world_collectibles.append({"x": x, "y": y, "kind": kind})
+        placed += 1
+
+
+def collect_world_item(kind):
+    """Applies a collectible's reward by name — kept as one dispatch point
+    so new kinds only need a case here, not a new E-key handler each."""
+    global emeralds
+    if kind == "four_leaf_clover":
+        emeralds += 15
+
 #Tree spawn
 TREE_INTERVAL = 20.0
 tree_timer = 0.0
@@ -2913,6 +2948,8 @@ for (lake_x, lake_y) in big_lake_centers:
 
 generate_archipelago()
 
+spawn_collectible_scattered("four_leaf_clover", 50, biomes=("meadow", "maple"))
+
 
 #Settlement counts scaled ~2.5x for the larger world, except kingdoms —
 #those are meant to stay rare/special, so just a modest bump.
@@ -3989,6 +4026,22 @@ while running:
                             market_message = "The monks bless you with sacred fruit and honed gear! Pick +1, Sword +1, +150 emeralds!"
                         market_message_timer = 3.5
 
+            # Picking up a world collectible (standing on it, press E) — rare
+            # scattered finds like four-leaf clovers; collect_world_item is
+            # the single dispatch point so new kinds are just a new case there.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e:
+                    found_item = None
+                    for item in world_collectibles:
+                        if item["x"] == player_x and item["y"] == player_y:
+                            found_item = item
+                            break
+                    if found_item is not None:
+                        world_collectibles.remove(found_item)
+                        collect_world_item(found_item["kind"])
+                        market_message = COLLECTIBLE_MESSAGES.get(found_item["kind"], "Picked something up!")
+                        market_message_timer = 2.6
+
             # Paying a kingdom's gate toll (facing it, press E) — a one-time
             # payment; once paid the gate stays open for the rest of the game.
             if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
@@ -4588,6 +4641,19 @@ while running:
             leaf_draw_x = (leaf["x"] - cam_x) * tile_draw_size
             leaf_draw_y = (leaf["y"] - cam_y) * tile_draw_size
             screen.blit(leaf_surf, (leaf_draw_x, leaf_draw_y))
+
+        #World collectibles: rare small finds sitting in the grass (clovers,
+        #berries, geodes, ...) — a plain colored dot is enough to read as
+        #"something's here", the market_message on pickup does the rest.
+        for item in world_collectibles:
+            if item["x"] < cam_x_i - 1 or item["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if item["y"] < cam_y_i - 1 or item["y"] > cam_y_i + visible_rows + 1:
+                continue
+            item_draw_x = (item["x"] - cam_x) * tile_draw_size + tile_draw_size // 2
+            item_draw_y = (item["y"] - cam_y) * tile_draw_size + tile_draw_size // 2
+            item_color = COLLECTIBLE_COLORS.get(item["kind"], (200, 200, 200))
+            pygame.draw.circle(screen, item_color, (int(item_draw_x), int(item_draw_y)), max(2, tile_draw_size // 8))
 
         # --- House exterior: sprite is 2 tiles tall, anchored so its bottom
         # edge sits on the bottom of its 1-tile solid footprint (the roof

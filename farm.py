@@ -1896,6 +1896,10 @@ FISH_SPEED = 0.7
 bubbles = []  # {x, y, life, max_life}
 BUBBLE_CHANCE = 0.001
 
+#Ripples: an expanding ring where a fish just jumped.
+ripples = []  # {x, y, life, max_life}
+FISH_JUMP_CHANCE = 0.08  # rolled once each time a fish finishes a swim leg
+
 #Frogs: a post-rain-only critter, like the mushrooms, but living on the
 #shoreline of a lake/pond rather than scattered across a biome — hop in
 #place with a little croak cue, then vanish again after FROG_LIFETIME.
@@ -3992,6 +3996,13 @@ while running:
                 else:
                     f["state"] = "idle"
                     f["timer"] = random.uniform(1.0, 3.0)
+                    if random.random() < FISH_JUMP_CHANCE:
+                        ripples.append({"x": f["x"], "y": f["y"], "life": 0.0, "max_life": 1.2})
+
+    if ripples:
+        for r in ripples:
+            r["life"] += dt
+        ripples[:] = [r for r in ripples if r["life"] < r["max_life"]]
 
     #Falling leaves: ambient particles shed by deciduous trees (spawned in
     #the tree render pass), drifting down with a light side-to-side wobble
@@ -5666,6 +5677,20 @@ while running:
             fish_scaled = pygame.transform.scale(sprite, (fish_size, fish_size))
             screen.blit(fish_scaled, (f_draw_x + (tile_draw_size - fish_size) // 2,
                                        f_draw_y + (tile_draw_size - fish_size) // 2 - bob))
+
+        #Ripples: an expanding, fading ring left by a jumping fish.
+        for r in ripples:
+            if r["x"] < cam_x_i - 1 or r["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if r["y"] < cam_y_i - 1 or r["y"] > cam_y_i + visible_rows + 1:
+                continue
+            t = r["life"] / r["max_life"]
+            r_draw_x = (r["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            r_draw_y = (r["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.5
+            r_r = int(tile_draw_size * (0.15 + 0.35 * t))
+            r_surf = pygame.Surface((r_r * 2 + 2, r_r * 2 + 2), pygame.SRCALPHA)
+            pygame.draw.circle(r_surf, (220, 235, 245, int(200 * (1 - t))), (r_r + 1, r_r + 1), r_r, 1)
+            screen.blit(r_surf, (r_draw_x - r_r - 1, r_draw_y - r_r - 1))
 
         #Bubbles: a small fading ring rising up from the pond floor.
         for b in bubbles:

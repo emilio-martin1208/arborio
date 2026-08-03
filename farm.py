@@ -1201,10 +1201,12 @@ world_landmarks = []  # {x, y, kind, discovered}
 LANDMARK_REWARDS = {
     "fairy_circle": 25,
     "stone_circle": 30,
+    "abandoned_campsite": 15,
 }
 LANDMARK_MESSAGES = {
     "fairy_circle": "You've stumbled into a fairy circle! (+25 emeralds)",
     "stone_circle": "An ancient stone circle, weathered by time (+30 emeralds).",
+    "abandoned_campsite": "An old abandoned campsite, long cold (+15 emeralds).",
 }
 
 
@@ -1251,6 +1253,14 @@ def draw_landmark(screen, kind, cx, cy, tile_draw_size, discovered):
             sx = cx + math.cos(ang) * r
             sy = cy + math.sin(ang) * r * 0.6
             pygame.draw.rect(screen, (120, 118, 128), (int(sx - stone_w / 2), int(sy - stone_w), stone_w, stone_w * 2))
+    elif kind == "abandoned_campsite":
+        ring_r = tile_draw_size * 0.28
+        pygame.draw.circle(screen, (90, 60, 40), (int(cx), int(cy)), int(ring_r), max(1, int(tile_draw_size * 0.04)))
+        for i in range(5):
+            ang = i * (2 * math.pi / 5)
+            log_x = cx + math.cos(ang) * ring_r * 0.7
+            log_y = cy + math.sin(ang) * ring_r * 0.7
+            pygame.draw.line(screen, (60, 40, 28), (cx, cy), (log_x, log_y), max(1, int(tile_draw_size * 0.05)))
 
 
 #Tree spawn
@@ -3343,6 +3353,7 @@ spawn_collectible_scattered("acorn", 70, biomes=("meadow", "maple"))
 spawn_collectible_scattered("pinecone", 50, biomes=("tundra", "jungle"))
 spawn_landmark_scattered("fairy_circle", 10, biomes=("meadow", "sakura"))
 spawn_landmark_scattered("stone_circle", 8, biomes=("tundra", "desert"))
+spawn_landmark_scattered("abandoned_campsite", 12, biomes=("meadow", "maple", "jungle"))
 
 
 def purify_around_ruin(ruin):

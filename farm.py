@@ -2470,8 +2470,38 @@ def spawn_villager_near(cx, cy, bounds=None):
                 "facing": "down", "wandering": False, "timer": random.uniform(0.0, 3.0),
                 "walk_timer": 0.0, "frame_index": 0,
                 "greeting": random.choice(VILLAGER_GREETINGS),
+                "role": None,
             })
             return
+
+
+def spawn_wandering_npc(role, display_name, greeting, count=1, biomes=None):
+    """Scatters a rare special-role NPC (traveling merchant, hermit, ...)
+    across the mainland rather than near one settlement — reuses the
+    villager wander/animation/dialogue plumbing wholesale (frames, greeting,
+    home/target wandering) via the same dict shape, just tagged with `role`
+    so a handler can single these out (e.g. the Carpenter's auto-repair
+    tick) without touching ordinary villagers."""
+    placed = 0
+    attempts = 0
+    while placed < count and attempts < count * 60:
+        attempts += 1
+        x = random.randint(0, MAINLAND_W - 1)
+        y = random.randint(0, WORLD_H - 1)
+        if biomes and biome_for(x, y) not in biomes:
+            continue
+        if farm[y][x]["state"] != "grass" or (x, y) in FARM_BLOCKED_TILES:
+            continue
+        sprite_name = random.choice(VILLAGER_NAMES)
+        villagers.append({
+            "name": display_name, "frames": VILLAGER_FRAMES_BY_NAME[sprite_name],
+            "home_x": float(x), "home_y": float(y),
+            "x": float(x), "y": float(y), "target_x": float(x), "target_y": float(y),
+            "facing": "down", "wandering": False, "timer": random.uniform(0.0, 3.0),
+            "walk_timer": 0.0, "frame_index": 0,
+            "greeting": greeting, "role": role,
+        })
+        placed += 1
 
 
 wells = []
@@ -3425,6 +3455,9 @@ spawn_landmark_scattered("wagon_remains", 10, biomes=("desert", "meadow"))
 spawn_landmark_scattered("forgotten_well", 9, biomes=("meadow", "maple", "sakura"))
 spawn_landmark_scattered("cave_entrance", 10, biomes=("tundra", "jungle"))
 spawn_landmark_scattered("forest_shrine", 8, biomes=("maple", "jungle", "sakura"))
+spawn_wandering_npc("merchant", "Traveling Merchant",
+                     "Rare goods, fair prices, and I never stay in one place long!",
+                     count=3)
 
 
 def purify_around_ruin(ruin):
@@ -4410,6 +4443,13 @@ while running:
                             if facing_pos == (round(villager["x"]), round(villager["y"])):
                                 dialogue_open = True
                                 dialogue_text = f"{villager['name']}: {villager['greeting']}"
+                                if villager.get("role") == "merchant":
+                                    #Traveling Merchant: a small random gift
+                                    #each visit, standing in for a proper
+                                    #rotating-stock shop within this pass's scope.
+                                    won_seed = random.choice(list(SEEDS.keys()))
+                                    discover_seed(won_seed, count=1)
+                                    dialogue_text += f" (Gives you 1 {SEEDS[won_seed]['name']} seed!)"
                                 break
 
             # Marketplace: E opens a stall when facing it, or (while open)

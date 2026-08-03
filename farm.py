@@ -2479,6 +2479,7 @@ def spawn_villager_near(cx, cy, bounds=None):
                 "walk_timer": 0.0, "frame_index": 0,
                 "greeting": random.choice(VILLAGER_GREETINGS),
                 "role": None,
+                "birthday": random.randint(1, SEASON_LENGTH_DAYS * len(SEASONS)),
             })
             return
 
@@ -4502,6 +4503,14 @@ while running:
                             if facing_pos == (round(villager["x"]), round(villager["y"])):
                                 dialogue_open = True
                                 dialogue_text = f"{villager['name']}: {villager['greeting']}"
+                                year_length = SEASON_LENGTH_DAYS * len(SEASONS)
+                                if (villager.get("birthday") is not None
+                                        and (day - 1) % year_length + 1 == villager["birthday"]
+                                        and villager.get("birthday_wished_year") != (day - 1) // year_length):
+                                    villager["birthday_wished_year"] = (day - 1) // year_length
+                                    emeralds += 10
+                                    dialogue_text = (f"{villager['name']}: It's my birthday today! "
+                                                      "Thanks for remembering (+10 emeralds)!")
                                 if villager.get("role") == "lost_child":
                                     #Lost Child quest: a single-visit "rescue"
                                     #— talking to them resolves the quest on

@@ -1198,6 +1198,10 @@ FROST_CHANCE = 0.12
 FROST_DAY = None
 FROST_KILL_CHANCE = 0.35
 
+#Bird migration: a V-formation flock flies across the sky at the start of
+#Fall (heading out) and Spring (heading back) — screen-space, like the moon.
+migrating_flock = []  # {x, y, vx} in screen pixels, one entry per bird
+
 
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
@@ -4647,6 +4651,13 @@ while running:
             if frosted_any:
                 trigger_ambient_cue("❄️ Morning frost damaged some of your young crops...")
 
+    #Bird migration: the flock just flies in a straight line off both
+    #edges of the screen, then the pool empties itself out.
+    if migrating_flock:
+        for bird in migrating_flock:
+            bird["x"] += bird["vx"] * dt
+        migrating_flock[:] = [b for b in migrating_flock if -60 <= b["x"] <= WIDTH + 60]
+
     #Bubbles: a rare rising bubble spawned from a random pond tile.
     if location == "farm" and water_shapes and random.random() < BUBBLE_CHANCE:
         shape = random.choice(water_shapes)
@@ -5088,6 +5099,18 @@ while running:
                             spawn_collectible_scattered("leaf_pile", 40, biomes=("maple", "meadow"))
                         elif season_before == "Fall":
                             world_collectibles[:] = [c for c in world_collectibles if c["kind"] != "leaf_pile"]
+                        #Bird migration: a flock crosses the sky heading out
+                        #in Fall, and back in again come Spring.
+                        if season_after in ("Fall", "Spring"):
+                            direction = -1 if season_after == "Fall" else 1
+                            start_x = WIDTH + 40 if direction < 0 else -40
+                            migrating_flock.clear()
+                            for i in range(7):
+                                lead_offset = abs(i - 3) * 14
+                                migrating_flock.append({
+                                    "x": start_x - direction * i * 22,
+                                    "y": 60 + lead_offset, "vx": direction * 55,
+                                })
                     else:
                         day_popup_queue.append({"text": f"Day {day}", "timer": 0.0})
 
@@ -6873,6 +6896,14 @@ while running:
         fog_surf = pygame.Surface((WIDTH, HEIGHT - UI_BAR_HEIGHT), pygame.SRCALPHA)
         fog_surf.fill((225, 225, 220, int(110 * fog_strength)))
         screen.blit(fog_surf, (0, 0))
+
+    #Bird migration: each bird is just a small "M" wingbeat mark.
+    if location == "farm" and migrating_flock:
+        wing = 6
+        for bird in migrating_flock:
+            bx, by = bird["x"], bird["y"]
+            pygame.draw.lines(screen, (50, 50, 55), False,
+                               [(bx - wing, by + wing * 0.4), (bx, by), (bx + wing, by + wing * 0.4)], 2)
 
     #Heatwave: a faint warm orange wash over the daytime scene — the real
     #effect (faster withering) lives in the crop-growth tick, not here.

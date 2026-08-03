@@ -1591,6 +1591,26 @@ def maybe_crow_steal():
     trigger_ambient_cue("\U0001F426‍⬛ A crow swoops in and steals a crop!")
 
 
+#Snails: another post-rain-only ambient critter, scattered across damp
+#grass anywhere on the mainland (unlike frogs, not pond-specific).
+snails = []  # {x, y, life, max_life}
+SNAIL_LIFETIME = 60.0
+
+
+def spawn_snails_after_rain():
+    count = random.randint(3, 7)
+    placed = 0
+    attempts = 0
+    while placed < count and attempts < count * 40:
+        attempts += 1
+        x = random.randint(0, MAINLAND_W - 1)
+        y = random.randint(0, WORLD_H - 1)
+        if farm[y][x]["state"] != "grass" or (x, y) in FARM_BLOCKED_TILES:
+            continue
+        snails.append({"x": x, "y": y, "life": 0.0, "max_life": SNAIL_LIFETIME})
+        placed += 1
+
+
 def spawn_frogs_near_ponds():
     spawned_any = False
     for shape in water_shapes:
@@ -3840,6 +3860,7 @@ while running:
                 rainbow_timer = 0.0
             if spawn_frogs_near_ponds():
                 trigger_ambient_cue("🐸 Frogs croak near the water...")
+            spawn_snails_after_rain()
     elif snowing:
         snow_timer += dt
         if snow_timer >= SNOW_DURATION:
@@ -3901,6 +3922,12 @@ while running:
         for frog in frogs:
             frog["life"] += dt
         frogs[:] = [f for f in frogs if f["life"] < f["max_life"]]
+
+    #Snails: age out after SNAIL_LIFETIME, same idea as frogs/mushrooms.
+    if snails:
+        for snail in snails:
+            snail["life"] += dt
+        snails[:] = [sn for sn in snails if sn["life"] < sn["max_life"]]
 
     #Crows: only worth checking while there's actually something to steal.
     if location == "farm" and active_crop_tiles:
@@ -4984,6 +5011,18 @@ while running:
             bee_draw_y = (bee["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.3
             bee_r = max(1, int(tile_draw_size * 0.06))
             pygame.draw.circle(screen, (235, 195, 60), (int(bee_draw_x), int(bee_draw_y)), bee_r)
+
+        #Snails: a tiny brown shell-spiral sitting in the damp grass.
+        for snail in snails:
+            if snail["x"] < cam_x_i - 1 or snail["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if snail["y"] < cam_y_i - 1 or snail["y"] > cam_y_i + visible_rows + 1:
+                continue
+            snail_draw_x = (snail["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            snail_draw_y = (snail["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.6
+            shell_r = max(2, int(tile_draw_size * 0.1))
+            pygame.draw.circle(screen, (150, 110, 70), (int(snail_draw_x), int(snail_draw_y)), shell_r)
+            pygame.draw.circle(screen, (110, 78, 48), (int(snail_draw_x), int(snail_draw_y)), max(1, shell_r // 2))
 
         #Falling leaves: small fading dots drifting down from deciduous
         #trees, colored to match that tree's canopy

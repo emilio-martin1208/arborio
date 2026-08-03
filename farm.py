@@ -3458,6 +3458,9 @@ spawn_landmark_scattered("forest_shrine", 8, biomes=("maple", "jungle", "sakura"
 spawn_wandering_npc("merchant", "Traveling Merchant",
                      "Rare goods, fair prices, and I never stay in one place long!",
                      count=3)
+spawn_wandering_npc("musician", "Wandering Musician",
+                     "Care for a tune? Music always sounds better out in the open air.",
+                     count=3)
 
 
 def purify_around_ruin(ruin):

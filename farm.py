@@ -5875,6 +5875,14 @@ while running:
             if not villager["wandering"]:
                 v_breath = int(math.sin(current_ticks * 0.0028 + villager["x"] * 1.7) * tile_draw_size * 0.03)
             screen.blit(v_scaled, (v_draw_x, v_draw_y + v_breath))
+            #Seasonal outfit accent: a small colored patch (scarf/sunhat/
+            #cloak) standing in for a full seasonal palette swap of every
+            #villager sprite, which is out of scope for a per-day toggle.
+            outfit_color = {"Spring": (240, 170, 200), "Summer": (250, 210, 60),
+                             "Fall": (200, 110, 50), "Winter": (210, 225, 245)}[season_for_day(day)]
+            pygame.draw.rect(screen, outfit_color,
+                              (v_draw_x + tile_draw_size * 0.32, v_draw_y + v_breath + tile_draw_size * 0.62,
+                               tile_draw_size * 0.36, tile_draw_size * 0.14))
 
         #Peaceful animals: a small hop/bob while moving, flipped to face travel direction
         for animal in animals:

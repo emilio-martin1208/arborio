@@ -1135,6 +1135,16 @@ def is_holiday(d=None):
     return dd % 7 == 0
 
 
+def is_festival_day(d=None):
+    """Once per season (not every week, unlike is_holiday) — a bigger
+    event with an actual sell-price bonus, not just decorations."""
+    dd = day if d is None else d
+    return ((dd - 1) % SEASON_LENGTH_DAYS) + 1 == 4
+
+
+FESTIVAL_SELL_BONUS = 1.25
+
+
 LUNAR_CYCLE_DAYS = 14
 
 
@@ -4937,14 +4947,19 @@ while running:
                         elif trade["type"] == "sell":
                             if seed_inventory.get(trade["item"], 0) >= trade["qty"]:
                                 seed_inventory[trade["item"]] -= trade["qty"]
-                                emeralds += trade["price"]
+                                payout = trade["price"]
+                                if is_festival_day():
+                                    payout = round(payout * FESTIVAL_SELL_BONUS)
+                                emeralds += payout
                                 market_message = f"Sold {trade['qty']} {SEEDS[trade['item']]['name']}"
+                                if is_festival_day():
+                                    market_message += " (festival bonus!)"
                             else:
                                 market_message = "Not enough to sell!"
                         elif trade["type"] == "sell_good":
                             if goods_inventory.get(trade["item"], 0) >= trade["qty"]:
                                 goods_inventory[trade["item"]] -= trade["qty"]
-                                emeralds += trade["price"]
+                                emeralds += round(trade["price"] * FESTIVAL_SELL_BONUS) if is_festival_day() else trade["price"]
                                 market_message = f"Sold {trade['qty']} {GOODS_INFO[trade['item']]['name']}"
                             else:
                                 market_message = "Not enough to sell!"
@@ -5148,6 +5163,10 @@ while running:
                                     "x": start_x - direction * i * 22,
                                     "y": 60 + lead_offset, "vx": direction * 55,
                                 })
+                    elif is_festival_day():
+                        day_popup_queue.append({
+                            "text": f"The {season_after} Festival is here! Sell prices +{int((FESTIVAL_SELL_BONUS - 1) * 100)}% today.",
+                            "timer": 0.0})
                     else:
                         day_popup_queue.append({"text": f"Day {day}", "timer": 0.0})
 
@@ -6340,7 +6359,7 @@ while running:
             screen.blit(stall_scaled, (stall_draw_x, stall_draw_y))
             #Holiday decorations: a string of small triangular bunting flags
             #strung above the stall on a holiday.
-            if is_holiday():
+            if is_holiday() or is_festival_day():
                 bunting_colors = [(210, 70, 70), (230, 200, 60), (80, 150, 200), (90, 170, 90)]
                 bunting_y = stall_draw_y - tile_draw_size * 0.15
                 flag_w = tile_draw_size * width_tiles / 5

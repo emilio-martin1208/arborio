@@ -3406,6 +3406,13 @@ def _refresh_dragonflies():
 dust_devils = []  # {x, y, vx, vy, life, max_life, phase}
 DUST_DEVIL_CHANCE = 0.0006
 
+#Whirlwinds: the desert dust devil's grassy-biome cousin — picks up a few
+#leaf-colored specks instead of dust, and actually travels rather than
+#sitting near the player.
+whirlwinds = []  # {x, y, vx, vy, life, max_life, phase}
+WHIRLWIND_CHANCE = 0.0004
+WHIRLWIND_BIOMES = ("meadow", "maple", "jungle")
+
 
 #Bees: a small swarm orbiting each active Bee Hive, daytime only — unlike
 #butterflies/dragonflies (one shared pool), bees are tracked per-hive so a
@@ -3607,6 +3614,23 @@ while running:
             dd["x"] += dd["vx"] * dt
             dd["y"] += dd["vy"] * dt
         dust_devils[:] = [dd for dd in dust_devils if dd["life"] < dd["max_life"]]
+
+    #Whirlwinds: same idea as a dust devil, but travels across the ground
+    #instead of hovering near the player, and only in grassy biomes.
+    if location == "farm" and biome_for(int(player_x), int(player_y)) in WHIRLWIND_BIOMES \
+            and random.random() < WHIRLWIND_CHANCE:
+        wa = random.uniform(0, 6.28)
+        whirlwinds.append({
+            "x": player_x + random.uniform(-8, 8), "y": player_y + random.uniform(-8, 8),
+            "vx": math.cos(wa) * 2.2, "vy": math.sin(wa) * 2.2,
+            "life": 0.0, "max_life": random.uniform(4.0, 6.0), "phase": random.uniform(0, 6.28),
+        })
+    if whirlwinds:
+        for ww in whirlwinds:
+            ww["life"] += dt
+            ww["x"] += ww["vx"] * dt
+            ww["y"] += ww["vy"] * dt
+        whirlwinds[:] = [ww for ww in whirlwinds if ww["life"] < ww["max_life"]]
 
     #Footprints: just fade out over time, no drift
     if location == "farm":
@@ -5060,6 +5084,29 @@ while running:
                 my = dd_span / 2 + math.sin(ang) * r * 0.6 - i * tile_draw_size * 0.08
                 pygame.draw.circle(dd_surf, (200, 175, 120, int(200 * fade)), (int(mx), int(my)), 2)
             screen.blit(dd_surf, (dd_cx - dd_span / 2, dd_cy - dd_span / 2))
+
+        #Whirlwinds: a few leaf-colored specks spiraling around a moving
+        #center, picked from the same palette real falling leaves use.
+        leaf_palette = list(TREE_LEAF_COLORS.values())
+        for ww in whirlwinds:
+            if ww["x"] < cam_x_i - 1 or ww["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if ww["y"] < cam_y_i - 1 or ww["y"] > cam_y_i + visible_rows + 1:
+                continue
+            t = ww["life"] / ww["max_life"]
+            fade = min(1.0, t * 4) * min(1.0, (1 - t) * 4)
+            ww_cx = (ww["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            ww_cy = (ww["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.5
+            ww_span = int(tile_draw_size * 1.6)
+            ww_surf = pygame.Surface((ww_span, ww_span), pygame.SRCALPHA)
+            for i in range(5):
+                ang = ww["phase"] + ww["life"] * 7 + i * (2 * math.pi / 5)
+                r = tile_draw_size * (0.2 + 0.05 * i)
+                mx = ww_span / 2 + math.cos(ang) * r
+                my = ww_span / 2 + math.sin(ang) * r * 0.6 - i * tile_draw_size * 0.1
+                color = leaf_palette[i % len(leaf_palette)]
+                pygame.draw.circle(ww_surf, (*color, int(220 * fade)), (int(mx), int(my)), 2)
+            screen.blit(ww_surf, (ww_cx - ww_span / 2, ww_cy - ww_span / 2))
 
         #Bees: tiny black-and-gold dots buzzing around their hive.
         for bee in bees:

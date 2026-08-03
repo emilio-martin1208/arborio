@@ -202,11 +202,12 @@ ANIMAL_IMAGES = {"rabbit": load_image("Rabbit.png"), "bird": load_image("Bird.pn
                   "cat": load_image("Cat.png"), "mouse": load_image("Mouse.png"),
                   "chicken": load_image("Chicken.png"), "duck": load_image("Duck.png"),
                   "cow": load_image("Cow.png"), "sheep": load_image("Sheep.png"),
-                  "goat": load_image("Goat.png"), "dog": load_image("Dog.png"), "pig": load_image("Pig.png")}
+                  "goat": load_image("Goat.png"), "dog": load_image("Dog.png"), "pig": load_image("Pig.png"),
+                  "wild_horse": load_image("WildHorse.png"), "donkey": load_image("Donkey.png")}
 ANIMAL_IMAGES_FLIPPED = {k: pygame.transform.flip(v, True, False) for k, v in ANIMAL_IMAGES.items()}
 ANIMAL_SPEED = {"rabbit": 1.3, "bird": 1.8, "fox": 1.6, "deer": 1.5, "hedgehog": 0.7, "squirrel": 1.7,
                  "cat": 1.2, "mouse": 1.9, "chicken": 1.0, "duck": 1.0, "cow": 0.8, "sheep": 0.9,
-                 "goat": 1.1, "dog": 1.6, "pig": 0.8}
+                 "goat": 1.1, "dog": 1.6, "pig": 0.8, "wild_horse": 1.7, "donkey": 1.2}
 
 # Marketplace structures
 OUTPOST_IMAGES = [load_image(f"Outpost{i}.png") for i in range(1, 5)]        # small stall: 1 tile wide x 2 tall

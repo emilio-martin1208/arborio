@@ -103,6 +103,11 @@ PIG_SHADE = (206, 148, 154, 255)
 PIG_SNOUT = (214, 140, 148, 255)
 PIG_EYE = (30, 26, 24, 255)
 
+HORSE_BODY = (120, 82, 50, 255)
+HORSE_SHADE = (94, 62, 36, 255)
+HORSE_MANE = (54, 38, 26, 255)
+HORSE_EYE = (20, 16, 14, 255)
+
 
 def s(v):
     return v * SCALE
@@ -444,6 +449,50 @@ def make_pig():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_horse():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # legs
+    for lx in (11, 15, 19, 23):
+        draw.line([(s(lx), s(22)), (s(lx), s(29))], fill=HORSE_SHADE, width=max(1, int(s(0.8))))
+    # body
+    draw.ellipse([s(7), s(12), s(24), s(24)], fill=HORSE_BODY)
+    draw.ellipse([s(7), s(18), s(24), s(24)], fill=HORSE_SHADE)
+    # neck + head
+    draw.polygon([(s(19), s(16)), (s(23), s(4)), (s(29), s(15))], fill=HORSE_BODY)
+    draw.ellipse([s(24), s(4), s(31), s(12)], fill=HORSE_BODY)
+    # mane
+    draw.line([(s(21), s(6)), (s(24), s(16))], fill=HORSE_MANE, width=max(1, int(s(1.2))))
+    # eye + tail
+    draw.ellipse([s(27.5), s(6.5), s(29), s(8)], fill=HORSE_EYE)
+    draw.line([(s(8), s(15)), (s(4), s(24))], fill=HORSE_MANE, width=max(1, int(s(1.0))))
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
+def make_donkey():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+    donkey_body = (150, 140, 130, 255)
+    donkey_shade = (120, 112, 104, 255)
+    donkey_belly = (222, 214, 204, 255)
+
+    for lx in (11, 15, 19, 23):
+        draw.line([(s(lx), s(22)), (s(lx), s(29))], fill=donkey_shade, width=max(1, int(s(0.8))))
+    draw.ellipse([s(7), s(12), s(24), s(24)], fill=donkey_body)
+    draw.ellipse([s(7), s(18), s(24), s(24)], fill=donkey_shade)
+    draw.ellipse([s(12), s(19), s(20), s(24)], fill=donkey_belly)
+    draw.polygon([(s(19), s(16)), (s(23), s(6)), (s(29), s(15))], fill=donkey_body)
+    draw.ellipse([s(24), s(6), s(31), s(13)], fill=donkey_body)
+    # long ears
+    draw.polygon([(s(25), s(7)), (s(23), s(0)), (s(26.5), s(6))], fill=donkey_body)
+    draw.polygon([(s(28), s(7)), (s(29), s(0)), (s(30), s(7))], fill=donkey_body)
+    draw.ellipse([s(27.5), s(8), s(29), s(9.5)], fill=(30, 26, 24, 255))
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
@@ -460,7 +509,11 @@ def main():
     make_goat().save(os.path.join(OUT_DIR, "Goat.png"))
     make_dog().save(os.path.join(OUT_DIR, "Dog.png"))
     make_pig().save(os.path.join(OUT_DIR, "Pig.png"))
-    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken/Duck/Cow/Sheep/Goat/Dog/Pig.png")
+    # Saved as WildHorse.png rather than Horse.png — that name is already
+    # taken by the rentable-mount system's 3-frame gallop sprite sheet.
+    make_horse().save(os.path.join(OUT_DIR, "WildHorse.png"))
+    make_donkey().save(os.path.join(OUT_DIR, "Donkey.png"))
+    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken/Duck/Cow/Sheep/Goat/Dog/Pig/WildHorse/Donkey.png")
 
 
 if __name__ == "__main__":

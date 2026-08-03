@@ -3494,6 +3494,9 @@ for (fish_lake_x, fish_lake_y) in random.sample(water_bodies, min(6, len(water_b
 spawn_wandering_npc("bird_watcher", "Bird Watcher",
                      "Shh! I'm counting species. Forty-two so far this season.",
                      count=3, biomes=("meadow", "maple"))
+spawn_wandering_npc("mushroom_collector", "Mushroom Collector",
+                     "The best ones grow right after a good rain, you know.",
+                     count=3, biomes=("jungle", "maple"))
 
 
 def purify_around_ruin(ruin):

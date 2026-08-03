@@ -1266,6 +1266,14 @@ spirit_encounters = []  # {x, y, vx, vy, life, max_life, kind, phase}
 
 FOREST_SPIRIT_CHANCE = 0.0004  # per-frame, only tested at dawn in forest biomes
 GHOST_LANTERN_CHANCE = 0.0003  # per-frame, only tested at midnight
+FRIENDLY_GHOST_CHANCE = 0.0002  # per-frame, only tested at night near a ruin
+FRIENDLY_GHOST_HINTS = [
+    "A friendly ghost whispers: \"Boats are found at docks near the shore...\"",
+    "A friendly ghost whispers: \"Crows won't touch your crops once you've built a Scarecrow.\"",
+    "A friendly ghost whispers: \"Mushrooms only sprout right after the rain clears.\"",
+    "A friendly ghost whispers: \"Catch a shooting star at night for a free seed.\"",
+    "A friendly ghost whispers: \"The Pick's second level doubles what a boulder drops.\"",
+]
 
 
 def spawn_spirit_encounter(kind, x, y, max_life):
@@ -3884,6 +3892,14 @@ while running:
                                player_y + random.uniform(-6, 6), max_life=10.0)
         trigger_ambient_cue("A lantern glows in the darkness, with no one holding it...")
 
+    #Friendly ghost: haunts the ruins at night, but only to offer a tip —
+    #reuses the ruins list so it always appears somewhere with real lore.
+    if location == "farm" and is_night() and ruins and random.random() < FRIENDLY_GHOST_CHANCE:
+        ruin = random.choice(ruins)
+        spawn_spirit_encounter("friendly_ghost", ruin["x"] + random.uniform(-3, 3),
+                               ruin["y"] + random.uniform(-3, 3), max_life=7.0)
+        trigger_ambient_cue(random.choice(FRIENDLY_GHOST_HINTS))
+
     if spirit_encounters:
         for sp in spirit_encounters:
             sp["life"] += dt
@@ -5494,7 +5510,8 @@ while running:
 
         #Spirit encounters: a soft glow that fades in, holds, then fades
         #back out — dispatch on kind for color/shape, shared fade math.
-        SPIRIT_COLORS = {"forest_spirit": (150, 220, 160), "ghost_lantern": (255, 200, 110)}
+        SPIRIT_COLORS = {"forest_spirit": (150, 220, 160), "ghost_lantern": (255, 200, 110),
+                         "friendly_ghost": (210, 220, 235)}
         for sp in spirit_encounters:
             if sp["x"] < cam_x_i - 1 or sp["x"] > cam_x_i + visible_cols + 1:
                 continue

@@ -1080,6 +1080,8 @@ snow_flakes = []
 RAINBOW_DURATION = 14.0
 rainbow_timer = 0.0
 rainbow_active = False
+rainbow_is_double = False
+DOUBLE_RAINBOW_CHANCE = 0.15
 
 #Ambient sound cues: the game has no audio engine, so wildlife/atmosphere
 #sounds (an owl hooting, crickets chirping, frogs croaking...) surface as a
@@ -4476,6 +4478,9 @@ while running:
             if not is_night():
                 rainbow_active = True
                 rainbow_timer = 0.0
+                rainbow_is_double = random.random() < DOUBLE_RAINBOW_CHANCE
+                if rainbow_is_double:
+                    trigger_ambient_cue("🌈🌈 A double rainbow!")
             if spawn_frogs_near_ponds():
                 trigger_ambient_cue("🐸 Frogs croak near the water...")
             spawn_snails_after_rain()
@@ -6758,6 +6763,14 @@ while running:
                 band_rect.center = (arc_cx, arc_cy)
                 pygame.draw.arc(rainbow_surf, (*color, int(150 * rb_alpha)),
                                  band_rect, math.pi, 2 * math.pi, 6)
+            if rainbow_is_double:
+                #Second, fainter, wider arc set outside the first — the
+                #classic double-rainbow look, with reversed color order.
+                for i, color in enumerate(reversed(band_colors)):
+                    outer_rect = pygame.Rect(0, 0, arc_w - i * 16 + 70, arc_h - i * 16 + 70)
+                    outer_rect.center = (arc_cx, arc_cy)
+                    pygame.draw.arc(rainbow_surf, (*color, int(90 * rb_alpha)),
+                                     outer_rect, math.pi, 2 * math.pi, 5)
             screen.blit(rainbow_surf, (0, 0))
 
     #Fireflies: soft green-gold glow, pulsing in and out rather than a

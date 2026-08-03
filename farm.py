@@ -991,6 +991,14 @@ WIND_CHIME_CHANCE = 0.0006
 birdhouse_pos = (HOUSE_POS[0] - 1, DOOR_ROW + 1)
 FARM_BLOCKED_TILES.add(birdhouse_pos)
 
+#Compost pile: a fixed prop right by the house that gives every crop within
+#a small radius a permanent, free growth boost — mirrors the Well's own
+#radius bonus in growth_rate_at, just always-on rather than built.
+compost_pile_pos = (HOUSE_POS[0] - 1, DOOR_ROW + 2)
+FARM_BLOCKED_TILES.add(compost_pile_pos)
+COMPOST_RADIUS = 3
+COMPOST_GROWTH_MULT = 1.15
+
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
 INTERIOR_W, INTERIOR_H = 6, 5
@@ -2375,6 +2383,8 @@ def growth_rate_at(x, y):
         if b["type"] == "farm_well" and b["stage"] == "active" and math.hypot(x - b["x"], y - b["y"]) <= 4:
             mult *= 1.3
             break
+    if math.hypot(x - compost_pile_pos[0], y - compost_pile_pos[1]) <= COMPOST_RADIUS:
+        mult *= COMPOST_GROWTH_MULT
     return mult
 
 
@@ -5926,6 +5936,18 @@ while running:
         pygame.draw.circle(screen, (60, 44, 30),
                             (int(bh_draw_x + tile_draw_size * 0.5), int(bh_draw_y + tile_draw_size * 0.4)),
                             max(1, int(tile_draw_size * 0.05)))
+
+        #Compost pile: a heap of rotted brown/green scraps.
+        cp_draw_x = (compost_pile_pos[0] - cam_x) * tile_draw_size
+        cp_draw_y = (compost_pile_pos[1] - cam_y) * tile_draw_size
+        pygame.draw.ellipse(screen, (90, 66, 40),
+                             (cp_draw_x + tile_draw_size * 0.16, cp_draw_y + tile_draw_size * 0.4,
+                              tile_draw_size * 0.68, tile_draw_size * 0.42))
+        for (dx, dy, c) in [(0.28, 0.44, (110, 140, 70)), (0.5, 0.4, (70, 90, 130)),
+                            (0.65, 0.5, (140, 110, 60))]:
+            pygame.draw.circle(screen, c,
+                                (int(cp_draw_x + tile_draw_size * dx), int(cp_draw_y + tile_draw_size * dy)),
+                                max(1, int(tile_draw_size * 0.06)))
 
         #Outposts / marketplaces: same bottom-anchored, 2-tiles-tall technique as the house
         for outpost in outposts:

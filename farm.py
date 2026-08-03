@@ -3401,6 +3401,12 @@ def _refresh_dragonflies():
                              "phase": random.uniform(0, 6.28)})
 
 
+#Dust devils: a small spinning column of dust that occasionally kicks up
+#around the player while they're out in the desert.
+dust_devils = []  # {x, y, vx, vy, life, max_life, phase}
+DUST_DEVIL_CHANCE = 0.0006
+
+
 #Bees: a small swarm orbiting each active Bee Hive, daytime only — unlike
 #butterflies/dragonflies (one shared pool), bees are tracked per-hive so a
 #torn-down or still-under-construction hive loses its swarm immediately.
@@ -3585,6 +3591,22 @@ while running:
             bee["y"] = bee["home_y"] + math.cos(ticks * 0.009 + bee["phase"] * 1.3) * 1.1
     elif is_night():
         bees.clear()
+
+    #Dust devils: only kick up while the player is actually standing in
+    #the desert, drifting a little before dissipating.
+    if location == "farm" and biome_for(int(player_x), int(player_y)) == "desert" \
+            and random.random() < DUST_DEVIL_CHANCE:
+        dust_devils.append({
+            "x": player_x + random.uniform(-6, 6), "y": player_y + random.uniform(-6, 6),
+            "vx": random.uniform(-1.0, 1.0), "vy": random.uniform(-1.0, 1.0),
+            "life": 0.0, "max_life": random.uniform(3.0, 5.0), "phase": random.uniform(0, 6.28),
+        })
+    if dust_devils:
+        for dd in dust_devils:
+            dd["life"] += dt
+            dd["x"] += dd["vx"] * dt
+            dd["y"] += dd["vy"] * dt
+        dust_devils[:] = [dd for dd in dust_devils if dd["life"] < dd["max_life"]]
 
     #Footprints: just fade out over time, no drift
     if location == "farm":
@@ -5017,6 +5039,27 @@ while running:
                                  [(wing, wing * 0.6), (wing * 1.5, wing * 0.2), (wing * 2, wing * 0.6),
                                   (wing * 1.5, wing * 0.4)])
             screen.blit(crow_surf, (crow_draw_x - wing, crow_draw_y - wing * 0.5))
+
+        #Dust devils: a few tan motes spiraling around a common center —
+        #fading in, then out, over the particle's lifetime.
+        for dd in dust_devils:
+            if dd["x"] < cam_x_i - 1 or dd["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if dd["y"] < cam_y_i - 1 or dd["y"] > cam_y_i + visible_rows + 1:
+                continue
+            t = dd["life"] / dd["max_life"]
+            fade = min(1.0, t * 4) * min(1.0, (1 - t) * 4)
+            dd_cx = (dd["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            dd_cy = (dd["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.5
+            dd_span = int(tile_draw_size * 1.4)
+            dd_surf = pygame.Surface((dd_span, dd_span), pygame.SRCALPHA)
+            for i in range(4):
+                ang = dd["phase"] + dd["life"] * 6 + i * (math.pi / 2)
+                r = tile_draw_size * (0.15 + 0.06 * i)
+                mx = dd_span / 2 + math.cos(ang) * r
+                my = dd_span / 2 + math.sin(ang) * r * 0.6 - i * tile_draw_size * 0.08
+                pygame.draw.circle(dd_surf, (200, 175, 120, int(200 * fade)), (int(mx), int(my)), 2)
+            screen.blit(dd_surf, (dd_cx - dd_span / 2, dd_cy - dd_span / 2))
 
         #Bees: tiny black-and-gold dots buzzing around their hive.
         for bee in bees:

@@ -1177,6 +1177,14 @@ solar_eclipse_timer = 0.0
 SOLAR_ECLIPSE_CHANCE = 0.08
 SOLAR_ECLIPSE_DURATION = 8.0
 
+#Fog: a rare morning haze that reduces visibility — decided once per day
+#right at dawn, active for a fixed stretch after that.
+fog_active = False
+fog_day = None
+fog_timer = 0.0
+FOG_CHANCE = 0.12
+FOG_DURATION = 25.0
+
 
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
@@ -4590,6 +4598,18 @@ while running:
         if solar_eclipse_timer >= SOLAR_ECLIPSE_DURATION:
             solar_eclipse_active = False
 
+    #Fog: rolled once per day at dawn, then active for a fixed stretch if it hits.
+    if location == "farm" and fog_day != day and is_dawn():
+        fog_day = day
+        if random.random() < FOG_CHANCE:
+            fog_active = True
+            fog_timer = 0.0
+            trigger_ambient_cue("A thick fog rolls in, cutting visibility...")
+    if fog_active:
+        fog_timer += dt
+        if fog_timer >= FOG_DURATION:
+            fog_active = False
+
     #Bubbles: a rare rising bubble spawned from a random pond tile.
     if location == "farm" and water_shapes and random.random() < BUBBLE_CHANCE:
         shape = random.choice(water_shapes)
@@ -6806,6 +6826,15 @@ while running:
         sun_cx, sun_cy = WIDTH // 2, 70
         pygame.draw.circle(screen, (240, 210, 140), (sun_cx, sun_cy), 22, 3)
         pygame.draw.circle(screen, (10, 10, 15), (sun_cx, sun_cy), 19)
+
+    #Fog: a soft white haze, thicker toward the fade-in/out edges of its
+    #duration, standing in for genuinely reduced visibility.
+    if location == "farm" and fog_active:
+        fog_t = fog_timer / FOG_DURATION
+        fog_strength = min(1.0, fog_t * 5) * min(1.0, (1 - fog_t) * 3 + 0.4)
+        fog_surf = pygame.Surface((WIDTH, HEIGHT - UI_BAR_HEIGHT), pygame.SRCALPHA)
+        fog_surf.fill((225, 225, 220, int(110 * fog_strength)))
+        screen.blit(fog_surf, (0, 0))
 
     #Aurora: a few soft, wavy translucent ribbons across the top of the
     #screen — winter-only, and rare even then.

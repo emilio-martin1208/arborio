@@ -4706,6 +4706,8 @@ while running:
         trigger_ambient_cue("The wind chimes by the door tinkle softly...")
     elif location == "farm" and is_night() and is_full_moon() and random.random() < 0.0006:
         trigger_ambient_cue("🌕 A full moon lights up the night sky...")
+    elif location == "farm" and is_dawn() and random.random() < 0.001:
+        trigger_ambient_cue("🐓 A rooster crows at the first light of dawn...")
 
     #Lunar eclipse: decided once per full-moon night, the first time that
     #night's checked — stays true/false for the rest of the night either way.

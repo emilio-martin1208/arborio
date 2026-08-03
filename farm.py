@@ -3500,6 +3500,9 @@ spawn_wandering_npc("mushroom_collector", "Mushroom Collector",
 spawn_wandering_npc("beekeeper", "Beekeeper",
                      "Keep your distance from the hives if you're not wearing a veil!",
                      count=2, biomes=("meadow",))
+spawn_wandering_npc("clockmaker", "Clockmaker",
+                     "Every gear has its place, just like every hour has its purpose.",
+                     count=2)
 
 
 def purify_around_ruin(ruin):

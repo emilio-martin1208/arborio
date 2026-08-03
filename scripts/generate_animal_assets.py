@@ -37,6 +37,12 @@ DEER_BELLY = (232, 218, 196, 255)
 DEER_ANTLER = (196, 176, 150, 255)
 DEER_EYE = (30, 26, 24, 255)
 
+HEDGEHOG_SPIKE = (120, 100, 74, 255)
+HEDGEHOG_SPIKE_SHADE = (94, 78, 56, 255)
+HEDGEHOG_FACE = (214, 196, 172, 255)
+HEDGEHOG_EYE = (30, 26, 24, 255)
+HEDGEHOG_NOSE = (50, 40, 34, 255)
+
 
 def s(v):
     return v * SCALE
@@ -147,12 +153,34 @@ def make_deer():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_hedgehog():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # spiky back — a dome of little triangles over a base ellipse
+    draw.ellipse([s(7), s(13), s(26), s(26)], fill=HEDGEHOG_SPIKE)
+    for i, sx in enumerate(range(8, 25, 3)):
+        h = 6 if i % 2 == 0 else 8
+        draw.polygon([(s(sx), s(15)), (s(sx + 1.5), s(15 - h)), (s(sx + 3), s(15))],
+                     fill=HEDGEHOG_SPIKE if i % 2 == 0 else HEDGEHOG_SPIKE_SHADE)
+    # face
+    draw.ellipse([s(6), s(17), s(15), s(25)], fill=HEDGEHOG_FACE)
+    draw.ellipse([s(5.5), s(20), s(8.5), s(23)], fill=HEDGEHOG_NOSE)
+    draw.ellipse([s(10), s(19), s(11.5), s(20.5)], fill=HEDGEHOG_EYE)
+    # feet
+    draw.ellipse([s(11), s(24), s(15), s(27)], fill=HEDGEHOG_SPIKE_SHADE)
+    draw.ellipse([s(19), s(24), s(23), s(27)], fill=HEDGEHOG_SPIKE_SHADE)
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
     make_fox().save(os.path.join(OUT_DIR, "Fox.png"))
     make_deer().save(os.path.join(OUT_DIR, "Deer.png"))
-    print("wrote Rabbit.png, Bird.png, Fox.png, Deer.png")
+    make_hedgehog().save(os.path.join(OUT_DIR, "Hedgehog.png"))
+    print("wrote Rabbit.png, Bird.png, Fox.png, Deer.png, Hedgehog.png")
 
 
 if __name__ == "__main__":

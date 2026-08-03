@@ -3506,6 +3506,9 @@ spawn_wandering_npc("clockmaker", "Clockmaker",
 spawn_wandering_npc("carpenter", "Carpenter",
                      "Saw a few loose boards on your way in — let me take a look.",
                      count=2)
+spawn_wandering_npc("lost_child", "Lost Child",
+                     "I don't know how to get home from here...",
+                     count=1, biomes=("tundra", "jungle", "desert"))
 
 
 def purify_around_ruin(ruin):
@@ -4491,7 +4494,17 @@ while running:
                             if facing_pos == (round(villager["x"]), round(villager["y"])):
                                 dialogue_open = True
                                 dialogue_text = f"{villager['name']}: {villager['greeting']}"
-                                if villager.get("role") == "carpenter":
+                                if villager.get("role") == "lost_child":
+                                    #Lost Child quest: a single-visit "rescue"
+                                    #— talking to them resolves the quest on
+                                    #the spot (they head home right after),
+                                    #rather than a full escort mechanic.
+                                    dialogue_text = ("Lost Child: I've been trying to find my way home! "
+                                                      "Thank you for finding me — I'll head back now.")
+                                    emeralds += 35
+                                    xp += 15.0
+                                    villagers.remove(villager)
+                                elif villager.get("role") == "carpenter":
                                     #Carpenter: a free top-up on every worn
                                     #building's condition, once per visit.
                                     repaired_any = False

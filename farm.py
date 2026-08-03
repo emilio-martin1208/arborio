@@ -968,6 +968,11 @@ MAILBOX_NEWSPAPER_TIPS = [
 weather_board_pos = (HOUSE_POS[0] + 3, DOOR_ROW + 1)
 FARM_BLOCKED_TILES.add(weather_board_pos)
 
+#Bench: a simple fixed seat near the house, purely decorative — a resting
+#spot to look at rather than something with its own mechanic.
+bench_pos = (HOUSE_POS[0] + 2, DOOR_ROW + 2)
+FARM_BLOCKED_TILES.add(bench_pos)
+
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
 INTERIOR_W, INTERIOR_H = 6, 5
@@ -5816,6 +5821,20 @@ while running:
         pygame.draw.circle(screen, board_sky_color,
                             (int(wb_draw_x + tile_draw_size * 0.5), int(wb_draw_y + tile_draw_size * 0.31)),
                             max(1, int(tile_draw_size * 0.08)))
+
+        #Bench: two little legs plus a seat plank and a backrest — purely decorative.
+        bn_draw_x = (bench_pos[0] - cam_x) * tile_draw_size
+        bn_draw_y = (bench_pos[1] - cam_y) * tile_draw_size
+        bench_wood = (140, 100, 62)
+        pygame.draw.rect(screen, bench_wood,
+                          (bn_draw_x + tile_draw_size * 0.15, bn_draw_y + tile_draw_size * 0.5,
+                           tile_draw_size * 0.7, tile_draw_size * 0.12))
+        pygame.draw.rect(screen, bench_wood,
+                          (bn_draw_x + tile_draw_size * 0.15, bn_draw_y + tile_draw_size * 0.3,
+                           tile_draw_size * 0.08, tile_draw_size * 0.32))
+        pygame.draw.rect(screen, bench_wood,
+                          (bn_draw_x + tile_draw_size * 0.77, bn_draw_y + tile_draw_size * 0.3,
+                           tile_draw_size * 0.08, tile_draw_size * 0.32))
 
         #Outposts / marketplaces: same bottom-anchored, 2-tiles-tall technique as the house
         for outpost in outposts:

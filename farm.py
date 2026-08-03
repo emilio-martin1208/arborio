@@ -1062,6 +1062,7 @@ COLLECTIBLE_COLORS = {
     "fossil": (196, 178, 140),
     "ancient_coin": (212, 175, 55),
     "glass_bottle": (110, 160, 130),
+    "message_bottle": (90, 140, 160),
 }
 COLLECTIBLE_MESSAGES = {
     "four_leaf_clover": "A four-leaf clover! Lucky find (+15 emeralds).",
@@ -1072,6 +1073,7 @@ COLLECTIBLE_MESSAGES = {
     "fossil": "Dug up an ancient fossil! (+18 emeralds)",
     "ancient_coin": "Found an ancient coin near the ruins! (+10 emeralds)",
     "glass_bottle": "An old glass bottle washed up on the shore (+5 emeralds).",
+    "message_bottle": "A message in a bottle, from some far-off sailor (+15 emeralds).",
 }
 MUSHROOM_LIFETIME = 90.0  # seconds before an uncollected post-rain mushroom withers
 
@@ -1086,6 +1088,24 @@ def spawn_collectible_scattered(kind, count, biomes=None):
         if biomes and biome_for(x, y) not in biomes:
             continue
         if farm[y][x]["state"] != "grass" or (x, y) in FARM_BLOCKED_TILES:
+            continue
+        world_collectibles.append({"x": x, "y": y, "kind": kind})
+        placed += 1
+
+
+def spawn_collectible_in_archipelago(kind, count):
+    """Like spawn_collectible_scattered, but for the tropical archipelago —
+    biome_for() only ever computes the mainland's algorithmic biomes, so
+    archipelago tiles (tagged "tropical" directly on the tile itself during
+    generate_archipelago) need their own scan across the eastern half of
+    the map instead."""
+    placed = 0
+    attempts = 0
+    while placed < count and attempts < count * 60:
+        attempts += 1
+        x = random.randint(MAINLAND_W, WORLD_W - 1)
+        y = random.randint(0, WORLD_H - 1)
+        if farm[y][x]["biome"] != "tropical" or farm[y][x]["state"] != "grass" or (x, y) in FARM_BLOCKED_TILES:
             continue
         world_collectibles.append({"x": x, "y": y, "kind": kind})
         placed += 1
@@ -1147,6 +1167,8 @@ def collect_world_item(kind):
         emeralds += 10
     elif kind == "glass_bottle":
         emeralds += 5
+    elif kind == "message_bottle":
+        emeralds += 15
 
 #Tree spawn
 TREE_INTERVAL = 20.0
@@ -3128,6 +3150,8 @@ for (lake_x, lake_y) in big_lake_centers:
     spawn_dock_near(lake_x, lake_y, search_radius=16)
 
 generate_archipelago()
+
+spawn_collectible_in_archipelago("message_bottle", 10)
 
 spawn_collectible_scattered("four_leaf_clover", 50, biomes=("meadow", "maple"))
 spawn_collectible_scattered("wild_berry", 60, biomes=("jungle", "maple"))

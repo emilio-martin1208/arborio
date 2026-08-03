@@ -1890,6 +1890,12 @@ water_shapes = []  # {"surface", "x", "y", "w", "h", "tiles"} — one precompute
 fish = []
 FISH_SPEED = 0.7
 
+#Bubbles: a rare rising bubble over a pond, popping once it reaches the
+#surface — spawned directly from a random water tile rather than needing
+#a persistent per-lake pool.
+bubbles = []  # {x, y, life, max_life}
+BUBBLE_CHANCE = 0.001
+
 #Frogs: a post-rain-only critter, like the mushrooms, but living on the
 #shoreline of a lake/pond rather than scattered across a biome — hop in
 #place with a little croak cue, then vanish again after FROG_LIFETIME.
@@ -4456,6 +4462,19 @@ while running:
     elif location == "farm" and random.random() < WIND_CHIME_CHANCE:
         trigger_ambient_cue("The wind chimes by the door tinkle softly...")
 
+    #Bubbles: a rare rising bubble spawned from a random pond tile.
+    if location == "farm" and water_shapes and random.random() < BUBBLE_CHANCE:
+        shape = random.choice(water_shapes)
+        if shape["tiles"]:
+            bx, by = random.choice(list(shape["tiles"]))
+            bubbles.append({"x": bx + random.uniform(-0.3, 0.3), "y": by + random.uniform(-0.3, 0.3),
+                            "life": 0.0, "max_life": random.uniform(1.5, 2.5)})
+    if bubbles:
+        for b in bubbles:
+            b["life"] += dt
+            b["y"] -= dt * 0.3
+        bubbles[:] = [b for b in bubbles if b["life"] < b["max_life"]]
+
     #Frogs: age out after FROG_LIFETIME, same idea as the mushrooms.
     if frogs:
         for frog in frogs:
@@ -5647,6 +5666,20 @@ while running:
             fish_scaled = pygame.transform.scale(sprite, (fish_size, fish_size))
             screen.blit(fish_scaled, (f_draw_x + (tile_draw_size - fish_size) // 2,
                                        f_draw_y + (tile_draw_size - fish_size) // 2 - bob))
+
+        #Bubbles: a small fading ring rising up from the pond floor.
+        for b in bubbles:
+            if b["x"] < cam_x_i - 1 or b["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if b["y"] < cam_y_i - 1 or b["y"] > cam_y_i + visible_rows + 1:
+                continue
+            fade = max(0.0, 1 - b["life"] / b["max_life"])
+            b_draw_x = (b["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            b_draw_y = (b["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.5
+            b_r = max(1, int(tile_draw_size * 0.06))
+            b_surf = pygame.Surface((b_r * 2 + 2, b_r * 2 + 2), pygame.SRCALPHA)
+            pygame.draw.circle(b_surf, (220, 240, 250, int(200 * fade)), (b_r + 1, b_r + 1), b_r, 1)
+            screen.blit(b_surf, (b_draw_x - b_r - 1, b_draw_y - b_r - 1))
 
         #Frogs: a small green body that hops in place near a pond's shore
         for frog in frogs:

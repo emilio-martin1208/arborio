@@ -938,6 +938,19 @@ for _path_i in range(1, PATH_LENGTH + 1):
         PATH_TILES.add((HOUSE_POS[0] + 1, _py))
 FARM_BLOCKED_TILES |= PATH_TILES  # keep the path clear of trees too
 
+#Mailbox: a fixed single-tile prop right next to the house's own path,
+#checked once a day for whatever's arrived (ads for now; more mail
+#categories get added to MAILBOX_MESSAGE_POOL over time).
+mailbox_pos = (HOUSE_POS[0] + 2, DOOR_ROW + 1)
+FARM_BLOCKED_TILES.add(mailbox_pos)
+mailbox_checked_day = 0
+MAILBOX_AD_MESSAGES = [
+    "Mailbox: \"SALE at the marketplace this week — seeds 10% off!\"",
+    "Mailbox: \"Lost dog, answers to 'Biscuit.' Reward if found.\"",
+    "Mailbox: \"Blacksmith now offering tool upgrades, ask in town!\"",
+    "Mailbox: \"Wanted: fresh produce for the tavern. Fair prices paid.\"",
+]
+
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
 INTERIOR_W, INTERIOR_H = 6, 5
@@ -4823,6 +4836,17 @@ while running:
                         market_message = COLLECTIBLE_MESSAGES.get(found_item["kind"], "Picked something up!")
                         market_message_timer = 2.6
 
+            # Checking the mailbox (standing on it, press E) — once per
+            # in-game day, since real mail doesn't arrive twice in one day.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e and (player_x, player_y) == mailbox_pos:
+                    if mailbox_checked_day != day:
+                        mailbox_checked_day = day
+                        market_message = random.choice(MAILBOX_AD_MESSAGES)
+                        market_message_timer = 3.0
+                    else:
+                        market_message, market_message_timer = "Mailbox: Nothing new today.", 2.0
+
             # Discovering a world landmark (standing on it, press E) — a
             # one-time thing, unlike collectibles, so revisiting does nothing.
             if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
@@ -5679,6 +5703,23 @@ while running:
         house_draw_y = (HOUSE_POS[1] - cam_y) * tile_draw_size - tile_draw_size
         house_scaled = pygame.transform.scale(IMG_HOUSE, (tile_draw_size * 2, tile_draw_size * 2))
         screen.blit(house_scaled, (house_draw_x, house_draw_y))
+
+        #Mailbox: a simple post + box, drawn with primitives like the other
+        #small fixed props rather than needing its own image asset.
+        mb_draw_x = (mailbox_pos[0] - cam_x) * tile_draw_size
+        mb_draw_y = (mailbox_pos[1] - cam_y) * tile_draw_size
+        mb_post_w = max(1, int(tile_draw_size * 0.08))
+        pygame.draw.rect(screen, (120, 88, 56),
+                          (mb_draw_x + tile_draw_size * 0.46, mb_draw_y + tile_draw_size * 0.4,
+                           mb_post_w, tile_draw_size * 0.6))
+        pygame.draw.rect(screen, (70, 110, 150),
+                          (mb_draw_x + tile_draw_size * 0.28, mb_draw_y + tile_draw_size * 0.22,
+                           tile_draw_size * 0.44, tile_draw_size * 0.24))
+        flag_up = mailbox_checked_day != day
+        flag_color = (200, 60, 56) if flag_up else (140, 130, 120)
+        pygame.draw.rect(screen, flag_color,
+                          (mb_draw_x + tile_draw_size * 0.7, mb_draw_y + tile_draw_size * 0.16,
+                           tile_draw_size * 0.06, tile_draw_size * (0.2 if flag_up else 0.04)))
 
         #Outposts / marketplaces: same bottom-anchored, 2-tiles-tall technique as the house
         for outpost in outposts:

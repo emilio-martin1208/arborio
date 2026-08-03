@@ -2579,7 +2579,7 @@ IDLE_ACTIONS_BY_SPECIES = {
     "chicken": ["peck", "dust_bathe"],
     "pig": ["mud_roll", "truffle_sniff"],
     "sheep": ["rub", "sleep"],
-    "cow": ["chew_cud"],
+    "cow": ["chew_cud", "groom"],
 }
 IDLE_ACTION_CHANCE = 0.01  # rolled once per frame an animal is truly idle with no action already playing
 IDLE_ACTION_DURATION = 1.2
@@ -2620,6 +2620,13 @@ def draw_idle_action(screen, species, action, cx, cy, tile_draw_size, ticks):
         jaw = abs(math.sin(ticks * 0.01)) * 2
         pygame.draw.line(screen, (200, 170, 160), (cx + tile_draw_size * 0.2, cy + tile_draw_size * 0.15),
                           (cx + tile_draw_size * 0.2, cy + tile_draw_size * 0.15 + jaw), 2)
+    elif species == "cow" and action == "groom":
+        #Another cow grooming nearby isn't guaranteed to exist, so this just
+        #reads as "nuzzling something just out of frame" rather than needing
+        #a real second animal reference.
+        lick = math.sin(ticks * 0.015) * tile_draw_size * 0.06
+        pygame.draw.line(screen, (220, 190, 180), (cx + tile_draw_size * 0.15, cy + tile_draw_size * 0.1),
+                          (cx + tile_draw_size * 0.3 + lick, cy + tile_draw_size * 0.05), 2)
 
 
 def spawn_animal():

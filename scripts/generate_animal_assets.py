@@ -43,6 +43,11 @@ HEDGEHOG_FACE = (214, 196, 172, 255)
 HEDGEHOG_EYE = (30, 26, 24, 255)
 HEDGEHOG_NOSE = (50, 40, 34, 255)
 
+SQUIRREL_BODY = (176, 96, 54, 255)
+SQUIRREL_SHADE = (144, 76, 42, 255)
+SQUIRREL_BELLY = (236, 220, 196, 255)
+SQUIRREL_EYE = (30, 26, 24, 255)
+
 
 def s(v):
     return v * SCALE
@@ -174,13 +179,36 @@ def make_hedgehog():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_squirrel():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # big curled tail behind the body
+    draw.polygon([(s(4), s(26)), (s(2), s(14)), (s(10), s(6)), (s(16), s(10)),
+                  (s(11), s(12)), (s(8), s(20)), (s(9), s(27))], fill=SQUIRREL_BODY)
+    draw.polygon([(s(5), s(24)), (s(4), s(15)), (s(9), s(9)), (s(12), s(11)),
+                  (s(8), s(18)), (s(8), s(25))], fill=SQUIRREL_SHADE)
+    # body + head
+    draw.ellipse([s(12), s(15), s(24), s(26)], fill=SQUIRREL_BODY)
+    draw.ellipse([s(14), s(20), s(24), s(26)], fill=SQUIRREL_BELLY)
+    draw.ellipse([s(19), s(10), s(28), s(19)], fill=SQUIRREL_BODY)
+    draw.ellipse([s(20), s(8), s(23), s(12)], fill=SQUIRREL_BODY)
+    draw.ellipse([s(24), s(8), s(27), s(12)], fill=SQUIRREL_BODY)
+    draw.ellipse([s(26), s(13), s(27.5), s(14.5)], fill=SQUIRREL_EYE)
+    # acorn held in front paws
+    draw.ellipse([s(18), s(19), s(22), s(23)], fill=(150, 100, 56, 255))
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
     make_fox().save(os.path.join(OUT_DIR, "Fox.png"))
     make_deer().save(os.path.join(OUT_DIR, "Deer.png"))
     make_hedgehog().save(os.path.join(OUT_DIR, "Hedgehog.png"))
-    print("wrote Rabbit.png, Bird.png, Fox.png, Deer.png, Hedgehog.png")
+    make_squirrel().save(os.path.join(OUT_DIR, "Squirrel.png"))
+    print("wrote Rabbit.png, Bird.png, Fox.png, Deer.png, Hedgehog.png, Squirrel.png")
 
 
 if __name__ == "__main__":

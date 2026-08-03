@@ -196,9 +196,10 @@ footprints = []  # {x, y, life, max_life, side}
 footprint_toggle = False  # alternates which foot fell last
 
 # Peaceful wandering animal mobs (no combat, just ambiance)
-ANIMAL_IMAGES = {"rabbit": load_image("Rabbit.png"), "bird": load_image("Bird.png")}
+ANIMAL_IMAGES = {"rabbit": load_image("Rabbit.png"), "bird": load_image("Bird.png"),
+                  "fox": load_image("Fox.png")}
 ANIMAL_IMAGES_FLIPPED = {k: pygame.transform.flip(v, True, False) for k, v in ANIMAL_IMAGES.items()}
-ANIMAL_SPEED = {"rabbit": 1.3, "bird": 1.8}
+ANIMAL_SPEED = {"rabbit": 1.3, "bird": 1.8, "fox": 1.6}
 
 # Marketplace structures
 OUTPOST_IMAGES = [load_image(f"Outpost{i}.png") for i in range(1, 5)]        # small stall: 1 tile wide x 2 tall

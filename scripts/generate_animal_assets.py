@@ -25,6 +25,12 @@ BIRD_BELLY = (230, 214, 170, 255)
 BIRD_BEAK = (232, 158, 60, 255)
 BIRD_EYE = (30, 26, 24, 255)
 
+FOX_BODY = (206, 108, 52, 255)
+FOX_SHADE = (170, 84, 38, 255)
+FOX_BELLY = (240, 226, 204, 255)
+FOX_EYE = (30, 26, 24, 255)
+FOX_EAR_INNER = (40, 30, 26, 255)
+
 
 def s(v):
     return v * SCALE
@@ -79,10 +85,40 @@ def make_bird():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_fox():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # bushy tail
+    draw.polygon([(s(3), s(20)), (s(11), s(14)), (s(12), s(24)), (s(4), s(27))], fill=FOX_BODY)
+    draw.ellipse([s(2), s(22), s(8), s(28)], fill=(255, 255, 255, 255))
+    # body
+    draw.ellipse([s(9), s(14), s(24), s(25)], fill=FOX_BODY)
+    draw.ellipse([s(9), s(19), s(24), s(25)], fill=FOX_SHADE)
+    # belly
+    draw.ellipse([s(13), s(18), s(21), s(25)], fill=FOX_BELLY)
+    # head
+    draw.ellipse([s(18), s(8), s(29), s(19)], fill=FOX_BODY)
+    draw.polygon([(s(26), s(13)), (s(30), s(14.5)), (s(26), s(16.5))], fill=FOX_BELLY)
+    # ears
+    draw.polygon([(s(19), s(9)), (s(21), s(2)), (s(23), s(9))], fill=FOX_BODY)
+    draw.polygon([(s(19.7), s(8)), (s(21), s(4)), (s(22.3), s(8))], fill=FOX_EAR_INNER)
+    draw.polygon([(s(24), s(9)), (s(26), s(2.5)), (s(28), s(9))], fill=FOX_BODY)
+    draw.polygon([(s(24.7), s(8)), (s(26), s(4.5)), (s(27.3), s(8))], fill=FOX_EAR_INNER)
+    # eye
+    draw.ellipse([s(25), s(11.5), s(26.5), s(13)], fill=FOX_EYE)
+    # feet
+    draw.ellipse([s(12), s(23), s(16), s(26.5)], fill=FOX_SHADE)
+    draw.ellipse([s(19), s(23), s(23), s(26.5)], fill=FOX_SHADE)
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
-    print("wrote Rabbit.png, Bird.png")
+    make_fox().save(os.path.join(OUT_DIR, "Fox.png"))
+    print("wrote Rabbit.png, Bird.png, Fox.png")
 
 
 if __name__ == "__main__":

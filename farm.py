@@ -1006,6 +1006,13 @@ FARM_BLOCKED_TILES.add(time_capsule_pos)
 time_capsule_buried = False
 time_capsule_buried_day = None
 
+#Campfire: a fixed spot near the house where the player can roast a
+#marshmallow, once per in-game day, for a small XP treat.
+campfire_pos = (HOUSE_POS[0] + 5, DOOR_ROW + 2)
+FARM_BLOCKED_TILES.add(campfire_pos)
+campfire_roasted_day = 0
+CAMPFIRE_XP_REWARD = 5.0
+
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
 INTERIOR_W, INTERIOR_H = 6, 5
@@ -5299,6 +5306,18 @@ while running:
                         market_message = f"You bury a time capsule for the farm's future! (+15 emeralds, Day {day})"
                         market_message_timer = 3.0
 
+            # Roasting a marshmallow at the campfire (standing on it, press
+            # E) — once per day, a small XP treat.
+            if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
+                if event.key == pygame.K_e and (player_x, player_y) == campfire_pos:
+                    if campfire_roasted_day == day:
+                        market_message, market_message_timer = "Already roasted a marshmallow today!", 2.0
+                    else:
+                        campfire_roasted_day = day
+                        xp += CAMPFIRE_XP_REWARD
+                        market_message = f"You roast a marshmallow by the fire (+{int(CAMPFIRE_XP_REWARD)} XP)."
+                        market_message_timer = 2.6
+
             # Discovering a world landmark (standing on it, press E) — a
             # one-time thing, unlike collectibles, so revisiting does nothing.
             if not inventory_open and not level_up_pending and not dialogue_open and not just_closed_dialogue and not market_open and not just_closed_market and not map_open and not journal_open and not build_menu_open and not building_panel_open and not farm_status_open and location == "farm":
@@ -6347,6 +6366,24 @@ while running:
                                  [(tc_draw_x + tile_draw_size * 0.5, tc_draw_y + tile_draw_size * 0.25),
                                   (tc_draw_x + tile_draw_size * 0.72, tc_draw_y + tile_draw_size * 0.32),
                                   (tc_draw_x + tile_draw_size * 0.5, tc_draw_y + tile_draw_size * 0.39)])
+
+        #Campfire: a ring of stones with a flickering flame — the same
+        #flicker math the winter NPC campfires already use.
+        cf_draw_x = (campfire_pos[0] - cam_x) * tile_draw_size
+        cf_draw_y = (campfire_pos[1] - cam_y) * tile_draw_size
+        cf_cx = cf_draw_x + tile_draw_size * 0.5
+        cf_cy = cf_draw_y + tile_draw_size * 0.6
+        pygame.draw.circle(screen, (120, 116, 110), (int(cf_cx), int(cf_cy)), int(tile_draw_size * 0.3), 3)
+        cf_flicker = 0.85 + 0.15 * math.sin(current_ticks * 0.02)
+        pygame.draw.circle(screen, (230, 140, 50), (int(cf_cx), int(cf_cy)), max(1, int(tile_draw_size * 0.16 * cf_flicker)))
+        pygame.draw.circle(screen, (250, 200, 90), (int(cf_cx), int(cf_cy - tile_draw_size * 0.05)),
+                            max(1, int(tile_draw_size * 0.08 * cf_flicker)))
+        if campfire_roasted_day == day:
+            pygame.draw.line(screen, (150, 110, 70), (cf_cx + tile_draw_size * 0.2, cf_cy + tile_draw_size * 0.1),
+                              (cf_cx + tile_draw_size * 0.4, cf_cy - tile_draw_size * 0.15), 2)
+            pygame.draw.circle(screen, (245, 235, 220),
+                                (int(cf_cx + tile_draw_size * 0.4), int(cf_cy - tile_draw_size * 0.15)),
+                                max(1, int(tile_draw_size * 0.06)))
 
         #Outposts / marketplaces: same bottom-anchored, 2-tiles-tall technique as the house
         for outpost in outposts:

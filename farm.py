@@ -4219,6 +4219,9 @@ while running:
     for animal in animals:
         adx, ady = animal["x"] - player_x, animal["y"] - player_y
         dist_to_player = math.hypot(adx, ady)
+        if (location == "farm" and animal["species"] == "wild_horse" and ambient_cue_cooldown_timer <= 0
+                and 0.01 < dist_to_player < 2.0 and random.random() < 0.02):
+            trigger_ambient_cue("🐴 A horse neighs as you approach...")
         #Chickens are curious rather than skittish — they tag along behind
         #the player for a few seconds instead of fleeing like everything else.
         if (location == "farm" and animal["species"] == "chicken" and animal["state"] not in ("following",)

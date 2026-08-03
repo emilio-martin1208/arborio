@@ -1417,6 +1417,7 @@ LANDMARK_REWARDS = {
     "cave_entrance": 22,
     "forest_shrine": 28,
     "achievement_statue": 20,
+    "gnome_statue": 8,
 }
 LANDMARK_MESSAGES = {
     "fairy_circle": "You've stumbled into a fairy circle! (+25 emeralds)",
@@ -1427,6 +1428,7 @@ LANDMARK_MESSAGES = {
     "cave_entrance": "You peek into a dark cave entrance (+22 emeralds).",
     "forest_shrine": "A quiet forest shrine, offerings still left behind (+28 emeralds).",
     "achievement_statue": "A statue honoring a legendary farmer of ages past (+20 emeralds).",
+    "gnome_statue": "A tiny gnome statue, hidden in the grass! (+8 emeralds)",
 }
 
 
@@ -1538,6 +1540,14 @@ def draw_landmark(screen, kind, cx, cy, tile_draw_size, discovered):
         cave_w, cave_h = tile_draw_size * 0.6, tile_draw_size * 0.5
         pygame.draw.ellipse(screen, (78, 74, 78), (int(cx - cave_w / 2), int(cy - cave_h / 2), int(cave_w), int(cave_h)))
         pygame.draw.ellipse(screen, (18, 16, 20), (int(cx - cave_w * 0.3), int(cy - cave_h * 0.25), int(cave_w * 0.6), int(cave_h * 0.6)))
+    elif kind == "gnome_statue":
+        gnome_h = tile_draw_size * 0.4
+        pygame.draw.rect(screen, (100, 130, 150), (int(cx - gnome_h * 0.18), int(cy - gnome_h * 0.3),
+                                                     int(gnome_h * 0.36), int(gnome_h * 0.5)))
+        pygame.draw.circle(screen, (230, 195, 165), (int(cx), int(cy - gnome_h * 0.4)), max(1, int(gnome_h * 0.18)))
+        pygame.draw.polygon(screen, (200, 60, 60),
+                             [(cx - gnome_h * 0.22, cy - gnome_h * 0.5), (cx, cy - gnome_h * 0.85),
+                              (cx + gnome_h * 0.22, cy - gnome_h * 0.5)])
     elif kind == "achievement_statue":
         base_w, base_h = tile_draw_size * 0.5, tile_draw_size * 0.16
         pygame.draw.rect(screen, (150, 148, 150), (int(cx - base_w / 2), int(cy), int(base_w), int(base_h)))
@@ -3704,6 +3714,7 @@ spawn_landmark_near_points("achievement_statue",
                             [(o["x"], o["y"]) for o in outposts if o["kind"] == "marketplace"],
                             per_point=1, radius=5)
 spawn_lily_pads()
+spawn_landmark_scattered("gnome_statue", 60, biomes=None)
 spawn_collectible_near_points("glass_bottle", water_bodies, per_point=1, radius=5)
 spawn_collectible_scattered("treasure_map", 10, biomes=("desert", "jungle"))
 spawn_collectible_scattered("lucky_penny", 80, biomes=None)

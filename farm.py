@@ -3491,6 +3491,10 @@ for (fish_lake_x, fish_lake_y) in random.sample(water_bodies, min(6, len(water_b
         })
         break
 
+spawn_wandering_npc("bird_watcher", "Bird Watcher",
+                     "Shh! I'm counting species. Forty-two so far this season.",
+                     count=3, biomes=("meadow", "maple"))
+
 
 def purify_around_ruin(ruin):
     """Defeating enough demons tied to a ruin gradually restores the desert

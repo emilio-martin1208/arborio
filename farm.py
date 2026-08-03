@@ -3327,6 +3327,25 @@ def _refresh_butterflies():
                              "phase": random.uniform(0, 6.28)})
 
 
+#Dragonflies: same hover-in-place idea as butterflies, but tied to a
+#random tile of a random lake/pond instead of a flower.
+dragonflies = []  # {x, y, home_x, home_y, phase}
+DRAGONFLY_COUNT = 14
+
+
+def _refresh_dragonflies():
+    attempts = 0
+    while len(dragonflies) < DRAGONFLY_COUNT and water_shapes and attempts < DRAGONFLY_COUNT * 10:
+        attempts += 1
+        shape = random.choice(water_shapes)
+        tiles = shape["tiles"]
+        if not tiles:
+            continue
+        hx, hy = random.choice(list(tiles))
+        dragonflies.append({"x": float(hx), "y": float(hy), "home_x": hx, "home_y": hy,
+                             "phase": random.uniform(0, 6.28)})
+
+
 #Main Game Loop
 running = True
 while running:
@@ -3468,6 +3487,16 @@ while running:
             bfly["y"] = bfly["home_y"] + math.cos(ticks * 0.0022 + bfly["phase"]) * 1.0
     elif is_night():
         butterflies.clear()
+
+    #Dragonflies: skim in a small hover loop over a pond tile, daytime only.
+    if location == "farm" and not is_night():
+        _refresh_dragonflies()
+        ticks = pygame.time.get_ticks()
+        for dfly in dragonflies:
+            dfly["x"] = dfly["home_x"] + math.sin(ticks * 0.003 + dfly["phase"]) * 1.8
+            dfly["y"] = dfly["home_y"] + math.cos(ticks * 0.004 + dfly["phase"]) * 1.2
+    elif is_night():
+        dragonflies.clear()
 
     #Footprints: just fade out over time, no drift
     if location == "farm":
@@ -4840,6 +4869,23 @@ while running:
                                  (int(bfly_draw_x - wing_w), int(bfly_draw_y - wing_h // 2), wing_w, wing_h))
             pygame.draw.ellipse(screen, (250, 200, 90),
                                  (int(bfly_draw_x), int(bfly_draw_y - wing_h // 2), wing_w, wing_h))
+
+        #Dragonflies: a thin dark body with two translucent teal wing
+        #streaks, skimming just above the water's surface.
+        for dfly in dragonflies:
+            if dfly["x"] < cam_x_i - 1 or dfly["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if dfly["y"] < cam_y_i - 1 or dfly["y"] > cam_y_i + visible_rows + 1:
+                continue
+            dfly_draw_x = (dfly["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            dfly_draw_y = (dfly["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.5
+            body_len = max(3, int(tile_draw_size * 0.22))
+            wing_span = max(3, int(tile_draw_size * 0.16))
+            pygame.draw.line(screen, (40, 60, 55),
+                              (dfly_draw_x, dfly_draw_y - body_len // 2),
+                              (dfly_draw_x, dfly_draw_y + body_len // 2), 2)
+            pygame.draw.line(screen, (110, 200, 195),
+                              (dfly_draw_x - wing_span, dfly_draw_y), (dfly_draw_x + wing_span, dfly_draw_y), 1)
 
         #Falling leaves: small fading dots drifting down from deciduous
         #trees, colored to match that tree's canopy

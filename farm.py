@@ -1591,6 +1591,12 @@ def maybe_crow_steal():
     trigger_ambient_cue("\U0001F426‍⬛ A crow swoops in and steals a crop!")
 
 
+#Worms: turned up by the act of planting (working the soil) — a brief
+#wiggle in the freshly-dug dirt, purely cosmetic.
+worms = []  # {x, y, life, max_life}
+WORM_LIFETIME = 2.2
+WORM_CHANCE = 0.3
+
 #Snails: another post-rain-only ambient critter, scattered across damp
 #grass anywhere on the mainland (unlike frogs, not pond-specific).
 snails = []  # {x, y, life, max_life}
@@ -3923,6 +3929,12 @@ while running:
             frog["life"] += dt
         frogs[:] = [f for f in frogs if f["life"] < f["max_life"]]
 
+    #Worms: age out quickly after being turned up by planting.
+    if worms:
+        for worm in worms:
+            worm["life"] += dt
+        worms[:] = [w for w in worms if w["life"] < w["max_life"]]
+
     #Snails: age out after SNAIL_LIFETIME, same idea as frogs/mushrooms.
     if snails:
         for snail in snails:
@@ -4519,6 +4531,8 @@ while running:
                             t["stage_anim"] = 0.0
                             seed_inventory[selected_seed]-=1
                             active_crop_tiles.add((px, py))
+                            if random.random() < WORM_CHANCE:
+                                worms.append({"x": px, "y": py, "life": 0.0, "max_life": WORM_LIFETIME})
 
 
                 # Harvest
@@ -5011,6 +5025,23 @@ while running:
             bee_draw_y = (bee["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.3
             bee_r = max(1, int(tile_draw_size * 0.06))
             pygame.draw.circle(screen, (235, 195, 60), (int(bee_draw_x), int(bee_draw_y)), bee_r)
+
+        #Worms: a short pink wiggling line, briefly visible in freshly-
+        #planted dirt before it burrows back in.
+        for worm in worms:
+            if worm["x"] < cam_x_i - 1 or worm["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if worm["y"] < cam_y_i - 1 or worm["y"] > cam_y_i + visible_rows + 1:
+                continue
+            fade = max(0.0, 1 - worm["life"] / worm["max_life"])
+            worm_draw_x = (worm["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            worm_draw_y = (worm["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.7
+            wobble = math.sin(current_ticks * 0.02 + worm["x"]) * tile_draw_size * 0.06
+            worm_len = tile_draw_size * 0.16
+            worm_surf = pygame.Surface((int(worm_len * 2), int(worm_len)), pygame.SRCALPHA)
+            pygame.draw.line(worm_surf, (210, 130, 140, int(255 * fade)),
+                              (0, worm_len * 0.5 + wobble), (worm_len * 2, worm_len * 0.5 - wobble), 2)
+            screen.blit(worm_surf, (worm_draw_x - worm_len, worm_draw_y - worm_len * 0.5))
 
         #Snails: a tiny brown shell-spiral sitting in the damp grass.
         for snail in snails:

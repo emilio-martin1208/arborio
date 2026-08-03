@@ -3464,6 +3464,9 @@ spawn_wandering_npc("musician", "Wandering Musician",
 spawn_wandering_npc("hermit", "The Hermit",
                      "I came out here for the quiet. Please don't tell anyone where I am.",
                      count=2, biomes=("maple", "jungle"))
+spawn_wandering_npc("mail_carrier", "Mail Carrier",
+                     "Special delivery! Glad I caught you.",
+                     count=3)
 
 
 def purify_around_ruin(ruin):
@@ -4449,7 +4452,13 @@ while running:
                             if facing_pos == (round(villager["x"]), round(villager["y"])):
                                 dialogue_open = True
                                 dialogue_text = f"{villager['name']}: {villager['greeting']}"
-                                if villager.get("role") == "merchant":
+                                if villager.get("role") == "mail_carrier":
+                                    #Mail Carrier: a small surprise gift of
+                                    #emeralds each time you catch them.
+                                    gift = random.randint(5, 15)
+                                    emeralds += gift
+                                    dialogue_text += f" (A surprise gift: +{gift} emeralds!)"
+                                elif villager.get("role") == "merchant":
                                     #Traveling Merchant: a small random gift
                                     #each visit, standing in for a proper
                                     #rotating-stock shop within this pass's scope.

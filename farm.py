@@ -4848,6 +4848,8 @@ while running:
         trigger_ambient_cue("🦗 Crickets chirp in the grass...")
     elif location == "farm" and random.random() < WIND_CHIME_CHANCE:
         trigger_ambient_cue("The wind chimes by the door tinkle softly...")
+    elif location == "farm" and any(a["species"] == "donkey" for a in animals) and random.random() < 0.0004:
+        trigger_ambient_cue("🐴 A donkey brays loudly somewhere nearby...")
     elif location == "farm" and is_night() and is_full_moon() and random.random() < 0.0006:
         trigger_ambient_cue("🌕 A full moon lights up the night sky...")
     elif location == "farm" and is_dawn() and random.random() < 0.001:

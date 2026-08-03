@@ -1167,6 +1167,14 @@ aurora_active = False
 aurora_day = None
 AURORA_CHANCE = 0.12
 
+#Solar eclipse: a rare few minutes of daytime darkness — decided once per
+#day the first time midday is reached, active for a fixed stretch after that.
+solar_eclipse_active = False
+solar_eclipse_day = None
+solar_eclipse_timer = 0.0
+SOLAR_ECLIPSE_CHANCE = 0.08
+SOLAR_ECLIPSE_DURATION = 8.0
+
 
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
@@ -4564,6 +4572,19 @@ while running:
     elif not is_night() or season_for_day(day) != "Winter":
         aurora_active = False
 
+    #Solar eclipse: rolled once per day right at midday, then active for a
+    #short fixed stretch of real time if it hits.
+    if location == "farm" and solar_eclipse_day != day and (day_timer / DAY_LENGTH) >= 0.5:
+        solar_eclipse_day = day
+        if random.random() < SOLAR_ECLIPSE_CHANCE:
+            solar_eclipse_active = True
+            solar_eclipse_timer = 0.0
+            trigger_ambient_cue("🌑 A solar eclipse darkens the sky...")
+    if solar_eclipse_active:
+        solar_eclipse_timer += dt
+        if solar_eclipse_timer >= SOLAR_ECLIPSE_DURATION:
+            solar_eclipse_active = False
+
     #Bubbles: a rare rising bubble spawned from a random pond tile.
     if location == "farm" and water_shapes and random.random() < BUBBLE_CHANCE:
         shape = random.choice(water_shapes)
@@ -6760,6 +6781,18 @@ while running:
         moon_surf = pygame.Surface((moon_r * 2 + 4, moon_r * 2 + 4), pygame.SRCALPHA)
         pygame.draw.circle(moon_surf, (*moon_color, moon_alpha), (moon_r + 2, moon_r + 2), moon_r)
         screen.blit(moon_surf, (WIDTH - 60 - moon_r, 40 - moon_r))
+
+    #Solar eclipse: a dark overlay plus a black disc with a thin glowing
+    #ring standing in for the corona, right in the middle of the sky.
+    if location == "farm" and solar_eclipse_active:
+        eclipse_t = solar_eclipse_timer / SOLAR_ECLIPSE_DURATION
+        darkness = min(1.0, eclipse_t * 4) * min(1.0, (1 - eclipse_t) * 4 + 0.3)
+        eclipse_overlay = pygame.Surface((WIDTH, HEIGHT - UI_BAR_HEIGHT), pygame.SRCALPHA)
+        eclipse_overlay.fill((10, 10, 20, int(160 * darkness)))
+        screen.blit(eclipse_overlay, (0, 0))
+        sun_cx, sun_cy = WIDTH // 2, 70
+        pygame.draw.circle(screen, (240, 210, 140), (sun_cx, sun_cy), 22, 3)
+        pygame.draw.circle(screen, (10, 10, 15), (sun_cx, sun_cy), 19)
 
     #Aurora: a few soft, wavy translucent ribbons across the top of the
     #screen — winter-only, and rare even then.

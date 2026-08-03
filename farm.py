@@ -2557,7 +2557,7 @@ animals = []
 #in draw_idle_action, not a whole new animal system.
 IDLE_ACTIONS_BY_SPECIES = {
     "chicken": ["peck", "dust_bathe"],
-    "pig": ["mud_roll"],
+    "pig": ["mud_roll", "truffle_sniff"],
 }
 IDLE_ACTION_CHANCE = 0.01  # rolled once per frame an animal is truly idle with no action already playing
 IDLE_ACTION_DURATION = 1.2
@@ -2582,6 +2582,10 @@ def draw_idle_action(screen, species, action, cx, cy, tile_draw_size, ticks):
         pygame.draw.ellipse(screen, (90, 70, 50), (int(cx - tile_draw_size * 0.3 + wobble),
                                                      int(cy + tile_draw_size * 0.3),
                                                      int(tile_draw_size * 0.6), int(tile_draw_size * 0.15)))
+    elif species == "pig" and action == "truffle_sniff":
+        sniff_bob = abs(math.sin(ticks * 0.025)) * tile_draw_size * 0.08
+        pygame.draw.circle(screen, (140, 100, 70),
+                            (int(cx + tile_draw_size * 0.25), int(cy + tile_draw_size * 0.3 + sniff_bob)), 2)
 
 
 def spawn_animal():

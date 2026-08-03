@@ -91,6 +91,13 @@ GOAT_HORN = (150, 132, 106, 255)
 GOAT_BEARD = (176, 166, 150, 255)
 GOAT_EYE = (150, 110, 40, 255)
 
+DOG_BODY = (188, 138, 78, 255)
+DOG_SHADE = (156, 110, 58, 255)
+DOG_BELLY = (232, 210, 176, 255)
+DOG_EAR = (140, 96, 50, 255)
+DOG_EYE = (30, 26, 24, 255)
+DOG_NOSE = (40, 34, 30, 255)
+
 
 def s(v):
     return v * SCALE
@@ -390,6 +397,29 @@ def make_goat():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_dog():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # tail
+    draw.line([(s(7), s(20)), (s(2), s(15))], fill=DOG_BODY, width=max(1, int(s(1.4))))
+    # body
+    draw.ellipse([s(9), s(16), s(23), s(26)], fill=DOG_BODY)
+    draw.ellipse([s(9), s(21), s(23), s(26)], fill=DOG_SHADE)
+    draw.ellipse([s(12), s(20), s(19), s(26)], fill=DOG_BELLY)
+    # head
+    draw.ellipse([s(17), s(9), s(27), s(19)], fill=DOG_BODY)
+    draw.ellipse([s(21), s(14), s(27), s(19)], fill=DOG_BELLY)
+    # floppy ears
+    draw.polygon([(s(18), s(11)), (s(15), s(17)), (s(19.5), s(15))], fill=DOG_EAR)
+    draw.polygon([(s(25), s(10)), (s(28.5), s(16)), (s(24.5), s(14))], fill=DOG_EAR)
+    # eye + nose
+    draw.ellipse([s(23), s(12.5), s(24.5), s(14)], fill=DOG_EYE)
+    draw.ellipse([s(25.5), s(16), s(27.5), s(17.5)], fill=DOG_NOSE)
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
@@ -404,7 +434,8 @@ def main():
     make_cow().save(os.path.join(OUT_DIR, "Cow.png"))
     make_sheep().save(os.path.join(OUT_DIR, "Sheep.png"))
     make_goat().save(os.path.join(OUT_DIR, "Goat.png"))
-    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken/Duck/Cow/Sheep/Goat.png")
+    make_dog().save(os.path.join(OUT_DIR, "Dog.png"))
+    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken/Duck/Cow/Sheep/Goat/Dog.png")
 
 
 if __name__ == "__main__":

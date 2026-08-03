@@ -3374,6 +3374,29 @@ def _refresh_dragonflies():
                              "phase": random.uniform(0, 6.28)})
 
 
+#Bees: a small swarm orbiting each active Bee Hive, daytime only — unlike
+#butterflies/dragonflies (one shared pool), bees are tracked per-hive so a
+#torn-down or still-under-construction hive loses its swarm immediately.
+bees = []  # {x, y, home_x, home_y, phase}
+BEES_PER_HIVE = 4
+
+
+def _refresh_bees():
+    hives = [b for b in farm_buildings if b["type"] == "beehive" and b["stage"] == "active"]
+    active_keys = {(h["x"], h["y"]) for h in hives}
+    bees[:] = [b for b in bees if (b["home_x"], b["home_y"]) in active_keys]
+    counts = {}
+    for bee in bees:
+        key = (bee["home_x"], bee["home_y"])
+        counts[key] = counts.get(key, 0) + 1
+    for hive in hives:
+        key = (hive["x"], hive["y"])
+        while counts.get(key, 0) < BEES_PER_HIVE:
+            bees.append({"x": float(hive["x"]), "y": float(hive["y"]), "home_x": hive["x"], "home_y": hive["y"],
+                         "phase": random.uniform(0, 6.28)})
+            counts[key] = counts.get(key, 0) + 1
+
+
 #Main Game Loop
 running = True
 while running:
@@ -3525,6 +3548,16 @@ while running:
             dfly["y"] = dfly["home_y"] + math.cos(ticks * 0.004 + dfly["phase"]) * 1.2
     elif is_night():
         dragonflies.clear()
+
+    #Bees: small swarm circling each active Bee Hive, daytime only.
+    if location == "farm" and not is_night():
+        _refresh_bees()
+        ticks = pygame.time.get_ticks()
+        for bee in bees:
+            bee["x"] = bee["home_x"] + math.sin(ticks * 0.007 + bee["phase"]) * 1.1
+            bee["y"] = bee["home_y"] + math.cos(ticks * 0.009 + bee["phase"] * 1.3) * 1.1
+    elif is_night():
+        bees.clear()
 
     #Footprints: just fade out over time, no drift
     if location == "farm":
@@ -4940,6 +4973,17 @@ while running:
                                  [(wing, wing * 0.6), (wing * 1.5, wing * 0.2), (wing * 2, wing * 0.6),
                                   (wing * 1.5, wing * 0.4)])
             screen.blit(crow_surf, (crow_draw_x - wing, crow_draw_y - wing * 0.5))
+
+        #Bees: tiny black-and-gold dots buzzing around their hive.
+        for bee in bees:
+            if bee["x"] < cam_x_i - 1 or bee["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if bee["y"] < cam_y_i - 1 or bee["y"] > cam_y_i + visible_rows + 1:
+                continue
+            bee_draw_x = (bee["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            bee_draw_y = (bee["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.3
+            bee_r = max(1, int(tile_draw_size * 0.06))
+            pygame.draw.circle(screen, (235, 195, 60), (int(bee_draw_x), int(bee_draw_y)), bee_r)
 
         #Falling leaves: small fading dots drifting down from deciduous
         #trees, colored to match that tree's canopy

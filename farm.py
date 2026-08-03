@@ -1133,6 +1133,21 @@ def is_holiday(d=None):
     return dd % 7 == 0
 
 
+LUNAR_CYCLE_DAYS = 14
+
+
+def moon_phase_fraction(d=None):
+    """0 = new moon (invisible), 1 = full moon, cycling smoothly across
+    LUNAR_CYCLE_DAYS — every other night-rendering feature (aurora, eclipses)
+    that cares about "is it a full moon" reads off of this same cycle."""
+    dd = day if d is None else d
+    return (1 - math.cos(2 * math.pi * (dd % LUNAR_CYCLE_DAYS) / LUNAR_CYCLE_DAYS)) / 2
+
+
+def is_full_moon(d=None):
+    return moon_phase_fraction(d) > 0.92
+
+
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
     general is_night() ambience (a ghost lantern, not owls/crickets)."""
@@ -4161,7 +4176,8 @@ while running:
     #Shooting stars: streak in from a random screen edge at night, fade
     #and vanish on their own if never clicked
     if location == "farm":
-        if is_night() and random.random() < SHOOTING_STAR_CHANCE:
+        star_chance = SHOOTING_STAR_CHANCE * (1.8 if is_full_moon() else 1.0)
+        if is_night() and random.random() < star_chance:
             view_h = HEIGHT - UI_BAR_HEIGHT
             edge = random.choice(["top", "left", "right"])
             if edge == "top":
@@ -4493,6 +4509,8 @@ while running:
         trigger_ambient_cue("🦗 Crickets chirp in the grass...")
     elif location == "farm" and random.random() < WIND_CHIME_CHANCE:
         trigger_ambient_cue("The wind chimes by the door tinkle softly...")
+    elif location == "farm" and is_night() and is_full_moon() and random.random() < 0.0006:
+        trigger_ambient_cue("🌕 A full moon lights up the night sky...")
 
     #Bubbles: a rare rising bubble spawned from a random pond tile.
     if location == "farm" and water_shapes and random.random() < BUBBLE_CHANCE:
@@ -6678,6 +6696,17 @@ while running:
             alpha = int(50 + 190 * blink)
             pygame.draw.circle(fly_surf, (210, 255, 120, alpha), (int(fly["x"]), int(fly["y"])), 2)
         screen.blit(fly_surf, (0, 0))
+
+    #The moon: a screen-space disc in the night sky, sized/brightened by
+    #moon_phase_fraction — barely visible near new moon, largest and
+    #brightest on a full moon night.
+    if location == "farm" and is_night():
+        phase = moon_phase_fraction()
+        moon_r = int(10 + 10 * phase)
+        moon_alpha = int(90 + 140 * phase)
+        moon_surf = pygame.Surface((moon_r * 2 + 4, moon_r * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(moon_surf, (235, 235, 210, moon_alpha), (moon_r + 2, moon_r + 2), moon_r)
+        screen.blit(moon_surf, (WIDTH - 60 - moon_r, 40 - moon_r))
 
     #Shooting stars: a bright head with a fading tail along its direction
     #of travel — click one before it burns out for a random seed

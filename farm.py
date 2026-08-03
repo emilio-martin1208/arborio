@@ -2550,6 +2550,26 @@ def growth_rate_at(x, y):
 #Peaceful animals: wander idly, flee a little if the player gets close
 animals = []
 
+#Baby animals: young companions rendered as a smaller scaled copy of the
+#same species' sprite, wandering near where they were placed rather than
+#tracking a specific parent (kept simple — the visual read of "a baby near
+#the herd" doesn't need literal parent-child pathing).
+baby_animals = []  # {species, x, y, target_x, target_y, state, timer, facing_right}
+BABY_SPEED_MULT = 0.8
+
+
+def spawn_baby_animal(species, near_x, near_y):
+    for _ in range(20):
+        x = near_x + random.uniform(-1.5, 1.5)
+        y = near_y + random.uniform(-1.5, 1.5)
+        ix, iy = int(x), int(y)
+        if 0 <= ix < WORLD_W and 0 <= iy < WORLD_H and farm[iy][ix]["state"] == "grass":
+            baby_animals.append({
+                "species": species, "x": x, "y": y, "target_x": x, "target_y": y,
+                "state": "idle", "timer": random.uniform(0.0, 2.0), "facing_right": True,
+            })
+            return
+
 #Idle behaviors: while genuinely idle (not moving/fleeing), an animal
 #occasionally plays a short species-specific action instead of just
 #standing still — one shared timer + dispatch, so each new behavior from
@@ -2614,6 +2634,12 @@ def spawn_animal():
 
 for _ in range(125):
     spawn_animal()
+
+#Lambs: a young companion near roughly a third of the sheep, always
+#hopping while idle rather than needing their own idle-action pool entry.
+for _sheep in [a for a in animals if a["species"] == "sheep"]:
+    if random.random() < 0.35:
+        spawn_baby_animal("sheep", _sheep["x"], _sheep["y"])
 
 #The birdhouse's own perching bird — placed once, right next to it, using
 #the same dict shape spawn_animal builds so it wanders/renders identically.
@@ -4206,6 +4232,33 @@ while running:
         for tr in animal_tracks:
             tr["life"] += dt
         animal_tracks[:] = [tr for tr in animal_tracks if tr["life"] < tr["max_life"]]
+
+    #Baby animals: a much simpler wander than their adult counterparts —
+    #short hops to a nearby spot, no fleeing, no idle-action pool.
+    for baby in baby_animals:
+        if baby["state"] == "idle":
+            baby["timer"] -= dt
+            if baby["timer"] <= 0:
+                tx = max(0, min(WORLD_W - 1, baby["x"] + random.uniform(-1.2, 1.2)))
+                ty = max(0, min(WORLD_H - 1, baby["y"] + random.uniform(-1.2, 1.2)))
+                if farm[int(ty)][int(tx)]["state"] == "grass":
+                    baby["target_x"], baby["target_y"] = tx, ty
+                    baby["state"] = "moving"
+                else:
+                    baby["timer"] = random.uniform(0.5, 1.5)
+        elif baby["state"] == "moving":
+            bdx, bdy = baby["target_x"] - baby["x"], baby["target_y"] - baby["y"]
+            bdist = math.hypot(bdx, bdy)
+            if bdist > 0.06:
+                speed = ANIMAL_SPEED.get(baby["species"], 1.0) * BABY_SPEED_MULT
+                step = min(bdist, speed * dt)
+                baby["x"] += bdx / bdist * step
+                baby["y"] += bdy / bdist * step
+                if abs(bdx) > 0.01:
+                    baby["facing_right"] = bdx > 0
+            else:
+                baby["state"] = "idle"
+                baby["timer"] = random.uniform(1.0, 2.5)
 
     #Fish: peaceful, purely ambient — wander only within their own lake's
     #exact tile set (never the surrounding land), no reaction to the player.
@@ -6796,6 +6849,23 @@ while running:
                 draw_idle_action(screen, animal["species"], animal["idle_action"],
                                   a_draw_x + tile_draw_size * 0.5, a_draw_y + tile_draw_size * 0.5,
                                   tile_draw_size, current_ticks)
+
+        #Baby animals: a smaller scaled copy of the parent species' own
+        #sprite, hopping rather than gliding while it moves.
+        for baby in baby_animals:
+            if not _on_screen(baby["x"], baby["y"]):
+                continue
+            baby_size = int(tile_draw_size * 0.65)
+            b_draw_x = (baby["x"] - cam_x) * tile_draw_size + (tile_draw_size - baby_size) // 2
+            b_draw_y = (baby["y"] - cam_y) * tile_draw_size + (tile_draw_size - baby_size) // 2
+            hop = 0
+            if baby["state"] == "moving" or baby["species"] == "sheep":
+                #Lambs (baby sheep) hop playfully even while standing still,
+                #not just while actually walking somewhere.
+                hop = abs(math.sin(current_ticks * 0.012 + baby["x"] * 4)) * tile_draw_size * 0.15
+            sprite_set = ANIMAL_IMAGES if baby["facing_right"] else ANIMAL_IMAGES_FLIPPED
+            baby_scaled = pygame.transform.scale(sprite_set[baby["species"]], (baby_size, baby_size))
+            screen.blit(baby_scaled, (b_draw_x, b_draw_y - hop))
 
         #Farm raiders: demons that wandered up through a ruin, same look and
         #behavior as their underworld kin

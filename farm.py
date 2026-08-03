@@ -1002,6 +1002,13 @@ def is_night(t=None):
     return frac >= 0.78 or frac < 0.22
 
 
+def is_dew_time(t=None):
+    """True for a short stretch right after dawn breaks — the window where
+    every growing crop glistens with dew, just before the day warms up."""
+    frac = (day_timer / DAY_LENGTH) if t is None else t
+    return 0.22 <= frac < 0.32
+
+
 #Shooting stars: rare, clickable night-sky streaks — catching one before it
 #fades grants a random seed, a small "look up" reward for exploring at night.
 shooting_stars = []  # {sx, sy, vx, vy, life, max_life} in screen pixels
@@ -4607,6 +4614,13 @@ while running:
                     offset_x = draw_x + (tile_draw_size - size) // 2 + sway
                     offset_y = draw_y + (tile_draw_size - size)
                     screen.blit(crop_scaled, (offset_x, offset_y))
+
+                    #Dew drops: a subtle glint on every growing crop, only
+                    #in the short window right after dawn.
+                    if is_dew_time() and tile["state"] in ("sprout", "growing", "grown"):
+                        dew_x = int(offset_x + size * 0.3 + math.sin(x * 17 + y * 5) * size * 0.15)
+                        dew_y = int(offset_y + size * 0.75)
+                        pygame.draw.circle(screen, (215, 235, 255), (dew_x, dew_y), max(1, tile_draw_size // 16))
 
         #Footprints: faint fading marks left behind on foot — drawn right on
         #the ground, before anything else (trees, buildings, entities) so

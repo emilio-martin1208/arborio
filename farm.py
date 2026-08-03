@@ -1203,12 +1203,14 @@ LANDMARK_REWARDS = {
     "stone_circle": 30,
     "abandoned_campsite": 15,
     "wagon_remains": 14,
+    "forgotten_well": 20,
 }
 LANDMARK_MESSAGES = {
     "fairy_circle": "You've stumbled into a fairy circle! (+25 emeralds)",
     "stone_circle": "An ancient stone circle, weathered by time (+30 emeralds).",
     "abandoned_campsite": "An old abandoned campsite, long cold (+15 emeralds).",
     "wagon_remains": "The remains of an old wagon, left to rot (+14 emeralds).",
+    "forgotten_well": "A forgotten well — someone tossed a few coins in (+20 emeralds).",
 }
 
 
@@ -1267,6 +1269,11 @@ def draw_landmark(screen, kind, cx, cy, tile_draw_size, discovered):
         wheel_r = tile_draw_size * 0.22
         pygame.draw.circle(screen, (90, 66, 40), (int(cx - wheel_r * 0.9), int(cy + wheel_r * 0.4)), int(wheel_r), 2)
         pygame.draw.rect(screen, (110, 78, 46), (int(cx - wheel_r * 0.5), int(cy - wheel_r), int(wheel_r * 2.4), int(wheel_r * 0.9)))
+    elif kind == "forgotten_well":
+        well_r = tile_draw_size * 0.3
+        pygame.draw.circle(screen, (110, 106, 100), (int(cx), int(cy)), int(well_r))
+        pygame.draw.circle(screen, (40, 44, 40), (int(cx), int(cy)), int(well_r * 0.6))
+        pygame.draw.rect(screen, (90, 70, 50), (int(cx - well_r), int(cy - well_r * 1.6), int(well_r * 2), max(1, int(tile_draw_size * 0.04))))
 
 
 #Tree spawn
@@ -3361,6 +3368,7 @@ spawn_landmark_scattered("fairy_circle", 10, biomes=("meadow", "sakura"))
 spawn_landmark_scattered("stone_circle", 8, biomes=("tundra", "desert"))
 spawn_landmark_scattered("abandoned_campsite", 12, biomes=("meadow", "maple", "jungle"))
 spawn_landmark_scattered("wagon_remains", 10, biomes=("desert", "meadow"))
+spawn_landmark_scattered("forgotten_well", 9, biomes=("meadow", "maple", "sakura"))
 
 
 def purify_around_ruin(ruin):

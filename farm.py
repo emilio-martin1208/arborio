@@ -1058,6 +1058,13 @@ def is_dawn(t=None):
     return 0.18 <= frac < 0.24
 
 
+def is_holiday(d=None):
+    """One day in every week-long stretch is a village holiday — used for
+    both the holiday-decoration bunting and (elsewhere) the festival."""
+    dd = day if d is None else d
+    return dd % 7 == 0
+
+
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
     general is_night() ambience (a ghost lantern, not owls/crickets)."""
@@ -5682,6 +5689,17 @@ while running:
             stall_draw_y = (outpost["y"] - cam_y) * tile_draw_size - tile_draw_size
             stall_scaled = pygame.transform.scale(stall_img, (tile_draw_size * width_tiles, tile_draw_size * 2))
             screen.blit(stall_scaled, (stall_draw_x, stall_draw_y))
+            #Holiday decorations: a string of small triangular bunting flags
+            #strung above the stall on a holiday.
+            if is_holiday():
+                bunting_colors = [(210, 70, 70), (230, 200, 60), (80, 150, 200), (90, 170, 90)]
+                bunting_y = stall_draw_y - tile_draw_size * 0.15
+                flag_w = tile_draw_size * width_tiles / 5
+                for i in range(5):
+                    fx = stall_draw_x + i * flag_w
+                    pygame.draw.polygon(screen, bunting_colors[i % len(bunting_colors)],
+                                         [(fx, bunting_y), (fx + flag_w * 0.8, bunting_y),
+                                          (fx + flag_w * 0.4, bunting_y + tile_draw_size * 0.18)])
 
         #Stables: same bottom-anchored, 2-tiles-tall, 2-tiles-wide technique
         for stable in stables:

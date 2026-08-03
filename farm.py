@@ -4222,6 +4222,8 @@ while running:
 
     #Peaceful animals: idle/wander, and skitter away if the player gets close
     for animal in animals:
+        if animal.get("hidden_timer", 0) > 0:
+            animal["hidden_timer"] = max(0.0, animal["hidden_timer"] - dt)
         adx, ady = animal["x"] - player_x, animal["y"] - player_y
         dist_to_player = math.hypot(adx, ady)
         if (location == "farm" and animal["species"] == "wild_horse" and ambient_cue_cooldown_timer <= 0
@@ -4257,6 +4259,10 @@ while running:
             if farm[int(ty)][int(tx)]["state"] == "grass" and _land_path_clear(animal["x"], animal["y"], tx, ty):
                 animal["target_x"], animal["target_y"] = tx, ty
                 animal["state"] = "fleeing"
+                #Rabbits specifically dart out of sight for a moment rather
+                #than just running — a literal "into the bushes" vanish.
+                if animal["species"] == "rabbit" and random.random() < 0.4:
+                    animal["hidden_timer"] = 0.6
 
         if animal["state"] == "idle":
             if animal["idle_action"] is not None:
@@ -6914,7 +6920,7 @@ while running:
 
         #Peaceful animals: a small hop/bob while moving, flipped to face travel direction
         for animal in animals:
-            if not _on_screen(animal["x"], animal["y"]):
+            if not _on_screen(animal["x"], animal["y"]) or animal.get("hidden_timer", 0) > 0:
                 continue
             a_draw_x = (animal["x"] - cam_x) * tile_draw_size
             a_draw_y = (animal["y"] - cam_y) * tile_draw_size

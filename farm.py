@@ -1900,6 +1900,19 @@ BUBBLE_CHANCE = 0.001
 ripples = []  # {x, y, life, max_life}
 FISH_JUMP_CHANCE = 0.08  # rolled once each time a fish finishes a swim leg
 
+#Lily pads: still decor sitting right on the water, scattered across a
+#handful of tiles per lake at world-gen time.
+lily_pads = []  # {x, y}
+
+
+def spawn_lily_pads():
+    for shape in water_shapes:
+        tiles = list(shape["tiles"])
+        if not tiles or random.random() > 0.4:
+            continue
+        for (lx, ly) in random.sample(tiles, min(3, len(tiles))):
+            lily_pads.append({"x": lx, "y": ly})
+
 #Frogs: a post-rain-only critter, like the mushrooms, but living on the
 #shoreline of a lake/pond rather than scattered across a biome — hop in
 #place with a little croak cue, then vanish again after FROG_LIFETIME.
@@ -3575,6 +3588,7 @@ spawn_collectible_near_points("ancient_coin", [(r["x"], r["y"]) for r in ruins],
 spawn_landmark_near_points("achievement_statue",
                             [(o["x"], o["y"]) for o in outposts if o["kind"] == "marketplace"],
                             per_point=1, radius=5)
+spawn_lily_pads()
 spawn_collectible_near_points("glass_bottle", water_bodies, per_point=1, radius=5)
 spawn_collectible_scattered("treasure_map", 10, biomes=("desert", "jungle"))
 spawn_collectible_scattered("lucky_penny", 80, biomes=None)
@@ -5677,6 +5691,20 @@ while running:
             fish_scaled = pygame.transform.scale(sprite, (fish_size, fish_size))
             screen.blit(fish_scaled, (f_draw_x + (tile_draw_size - fish_size) // 2,
                                        f_draw_y + (tile_draw_size - fish_size) // 2 - bob))
+
+        #Lily pads: flat still discs sitting right on the water's surface.
+        for lp in lily_pads:
+            if lp["x"] < cam_x_i - 1 or lp["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if lp["y"] < cam_y_i - 1 or lp["y"] > cam_y_i + visible_rows + 1:
+                continue
+            lp_cx = (lp["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            lp_cy = (lp["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.5
+            lp_r = tile_draw_size * 0.32
+            pygame.draw.circle(screen, (60, 130, 70), (int(lp_cx), int(lp_cy)), int(lp_r))
+            pygame.draw.polygon(screen, (40, 100, 55),
+                                 [(lp_cx, lp_cy), (lp_cx + lp_r, lp_cy - lp_r * 0.3),
+                                  (lp_cx + lp_r * 0.6, lp_cy + lp_r * 0.3)])
 
         #Ripples: an expanding, fading ring left by a jumping fish.
         for r in ripples:

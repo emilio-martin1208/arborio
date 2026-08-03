@@ -2641,6 +2641,12 @@ for _sheep in [a for a in animals if a["species"] == "sheep"]:
     if random.random() < 0.35:
         spawn_baby_animal("sheep", _sheep["x"], _sheep["y"])
 
+#Calves: same baby-animal framework, near roughly a third of the cows —
+#given a short burst of extra speed ("zoomies") once in a while.
+for _cow in [a for a in animals if a["species"] == "cow"]:
+    if random.random() < 0.35:
+        spawn_baby_animal("cow", _cow["x"], _cow["y"])
+
 #The birdhouse's own perching bird — placed once, right next to it, using
 #the same dict shape spawn_animal builds so it wanders/renders identically.
 animals.append({
@@ -4239,18 +4245,23 @@ while running:
         if baby["state"] == "idle":
             baby["timer"] -= dt
             if baby["timer"] <= 0:
-                tx = max(0, min(WORLD_W - 1, baby["x"] + random.uniform(-1.2, 1.2)))
-                ty = max(0, min(WORLD_H - 1, baby["y"] + random.uniform(-1.2, 1.2)))
+                #Calves occasionally get a burst of "zoomies" — a farther,
+                #faster dash instead of the usual short wandering hop.
+                zoomie = baby["species"] == "cow" and random.random() < 0.3
+                dash = 3.0 if zoomie else 1.2
+                tx = max(0, min(WORLD_W - 1, baby["x"] + random.uniform(-dash, dash)))
+                ty = max(0, min(WORLD_H - 1, baby["y"] + random.uniform(-dash, dash)))
                 if farm[int(ty)][int(tx)]["state"] == "grass":
                     baby["target_x"], baby["target_y"] = tx, ty
-                    baby["state"] = "moving"
+                    baby["state"] = "zoomie" if zoomie else "moving"
                 else:
                     baby["timer"] = random.uniform(0.5, 1.5)
-        elif baby["state"] == "moving":
+        elif baby["state"] in ("moving", "zoomie"):
             bdx, bdy = baby["target_x"] - baby["x"], baby["target_y"] - baby["y"]
             bdist = math.hypot(bdx, bdy)
             if bdist > 0.06:
-                speed = ANIMAL_SPEED.get(baby["species"], 1.0) * BABY_SPEED_MULT
+                speed_mult = BABY_SPEED_MULT * (2.5 if baby["state"] == "zoomie" else 1.0)
+                speed = ANIMAL_SPEED.get(baby["species"], 1.0) * speed_mult
                 step = min(bdist, speed * dt)
                 baby["x"] += bdx / bdist * step
                 baby["y"] += bdy / bdist * step
@@ -6859,7 +6870,7 @@ while running:
             b_draw_x = (baby["x"] - cam_x) * tile_draw_size + (tile_draw_size - baby_size) // 2
             b_draw_y = (baby["y"] - cam_y) * tile_draw_size + (tile_draw_size - baby_size) // 2
             hop = 0
-            if baby["state"] == "moving" or baby["species"] == "sheep":
+            if baby["state"] in ("moving", "zoomie") or baby["species"] == "sheep":
                 #Lambs (baby sheep) hop playfully even while standing still,
                 #not just while actually walking somewhere.
                 hop = abs(math.sin(current_ticks * 0.012 + baby["x"] * 4)) * tile_draw_size * 0.15

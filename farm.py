@@ -986,6 +986,11 @@ wind_chimes_pos = (HOUSE_POS[0] - 1, DOOR_ROW)
 FARM_BLOCKED_TILES.add(wind_chimes_pos)
 WIND_CHIME_CHANCE = 0.0006
 
+#Birdhouse: a fixed post near the house with a "bird" animal (already an
+#existing species) that tends to perch on it.
+birdhouse_pos = (HOUSE_POS[0] - 1, DOOR_ROW + 1)
+FARM_BLOCKED_TILES.add(birdhouse_pos)
+
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
 INTERIOR_W, INTERIOR_H = 6, 5
@@ -2393,6 +2398,14 @@ def spawn_animal():
 
 for _ in range(125):
     spawn_animal()
+
+#The birdhouse's own perching bird — placed once, right next to it, using
+#the same dict shape spawn_animal builds so it wanders/renders identically.
+animals.append({
+    "species": "bird", "x": float(birdhouse_pos[0]), "y": float(birdhouse_pos[1] - 1),
+    "target_x": float(birdhouse_pos[0]), "target_y": float(birdhouse_pos[1] - 1),
+    "state": "idle", "timer": random.uniform(0.0, 3.0), "facing_right": True,
+})
 
 #Marketplace: small outposts scattered around, larger marketplaces further
 #out, each with a handful of randomly generated buy/sell trades.
@@ -5895,6 +5908,24 @@ while running:
             chime_x = wc_top_x - tile_draw_size * 0.15 + i * tile_draw_size * 0.15 + wc_sway
             pygame.draw.line(screen, (200, 190, 140), (wc_top_x, wc_top_y + tile_draw_size * 0.14),
                               (chime_x, wc_top_y + tile_draw_size * 0.4), 1)
+
+        #Birdhouse: a post with a little box + peaked roof — the bird that
+        #perches here is a regular "bird" animal, spawned right beside it.
+        bh_draw_x = (birdhouse_pos[0] - cam_x) * tile_draw_size
+        bh_draw_y = (birdhouse_pos[1] - cam_y) * tile_draw_size
+        pygame.draw.rect(screen, (120, 88, 56),
+                          (bh_draw_x + tile_draw_size * 0.46, bh_draw_y + tile_draw_size * 0.45,
+                           max(1, int(tile_draw_size * 0.08)), tile_draw_size * 0.55))
+        pygame.draw.rect(screen, (196, 150, 96),
+                          (bh_draw_x + tile_draw_size * 0.3, bh_draw_y + tile_draw_size * 0.24,
+                           tile_draw_size * 0.4, tile_draw_size * 0.3))
+        pygame.draw.polygon(screen, (140, 60, 50),
+                             [(bh_draw_x + tile_draw_size * 0.26, bh_draw_y + tile_draw_size * 0.24),
+                              (bh_draw_x + tile_draw_size * 0.5, bh_draw_y + tile_draw_size * 0.08),
+                              (bh_draw_x + tile_draw_size * 0.74, bh_draw_y + tile_draw_size * 0.24)])
+        pygame.draw.circle(screen, (60, 44, 30),
+                            (int(bh_draw_x + tile_draw_size * 0.5), int(bh_draw_y + tile_draw_size * 0.4)),
+                            max(1, int(tile_draw_size * 0.05)))
 
         #Outposts / marketplaces: same bottom-anchored, 2-tiles-tall technique as the house
         for outpost in outposts:

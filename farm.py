@@ -998,6 +998,25 @@ RAINBOW_DURATION = 14.0
 rainbow_timer = 0.0
 rainbow_active = False
 
+#Ambient sound cues: the game has no audio engine, so wildlife/atmosphere
+#sounds (an owl hooting, crickets chirping, frogs croaking...) surface as a
+#small italic "you hear..." caption instead — one shared trigger+fade+render
+#so each new cue is just a condition and a line of text, not its own timer.
+ambient_message = ""
+ambient_message_timer = 0.0
+AMBIENT_CUE_COOLDOWN = 8.0  # minimum gap between any two cues, so they don't overlap/spam
+ambient_cue_cooldown_timer = 0.0
+
+
+def trigger_ambient_cue(text):
+    global ambient_message, ambient_message_timer, ambient_cue_cooldown_timer
+    ambient_message = text
+    ambient_message_timer = 3.2
+    ambient_cue_cooldown_timer = AMBIENT_CUE_COOLDOWN
+
+
+OWL_HOOT_CHANCE = 0.001  # per-frame chance, only tested while it's night
+
 
 def is_night(t=None):
     """True during the dusk-to-dawn stretch of the day cycle (day_timer's
@@ -3695,6 +3714,13 @@ while running:
             rainbow_active = False
             rainbow_timer = 0.0
 
+    #Ambient sound cues: cooldown-gated so at most one plays at a time,
+    #each cue below just adds its own condition + chance check.
+    if ambient_cue_cooldown_timer > 0:
+        ambient_cue_cooldown_timer -= dt
+    elif location == "farm" and is_night() and random.random() < OWL_HOOT_CHANCE:
+        trigger_ambient_cue("🦉 An owl hoots somewhere in the dark...")
+
     #Age out temporary world collectibles (e.g. post-rain mushrooms) that
     #were never picked up — permanent ones (clovers) have max_life=None.
     if world_collectibles:
@@ -5481,6 +5507,14 @@ while running:
         market_message_timer -= dt
         alpha = 255 if market_message_timer > 0.5 else int(255 * market_message_timer / 0.5)
         draw_wrapped_centered(screen, ui_font, market_message, TEXT_GOLD, WIDTH // 2, 110, WIDTH - 40, alpha=alpha)
+
+    #Ambient sound-cue caption: stands in for wildlife/atmosphere audio the
+    #game doesn't actually play, tucked near the bottom of the game view.
+    if ambient_message_timer > 0:
+        ambient_message_timer -= dt
+        alpha = 255 if ambient_message_timer > 0.6 else int(255 * ambient_message_timer / 0.6)
+        draw_wrapped_centered(screen, region_epithet_font, ambient_message, TEXT_CREAM,
+                               WIDTH // 2, HEIGHT - UI_BAR_HEIGHT - 34, WIDTH - 40, alpha=alpha)
 
     #Region entry banner: bigger and longer-lived than the market toast,
     #placed near the top of the screen like a location title card.

@@ -1018,6 +1018,13 @@ CAMPFIRE_XP_REWARD = 5.0
 butter_churn_pos = (HOUSE_POS[0] + 6, DOOR_ROW + 2)
 FARM_BLOCKED_TILES.add(butter_churn_pos)
 
+#Ancient tree: one unique, oversized tree near the house with a carved face
+#that slowly shifts expression with the seasons — purely a visual read of
+#season_for_day(day), no separate state to track.
+ancient_tree_pos = (HOUSE_POS[0] + 7, DOOR_ROW + 1)
+FARM_BLOCKED_TILES.add(ancient_tree_pos)
+FARM_BLOCKED_TILES.add((ancient_tree_pos[0], ancient_tree_pos[1] - 1))
+
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
 INTERIOR_W, INTERIOR_H = 6, 5
@@ -6416,6 +6423,30 @@ while running:
         handle_y = churn_cy + math.sin(churn_angle) * handle_r * 0.5
         pygame.draw.line(screen, (90, 66, 40), (churn_cx, churn_cy), (handle_x, handle_y), 2)
         pygame.draw.circle(screen, (60, 44, 28), (int(handle_x), int(handle_y)), max(1, int(tile_draw_size * 0.04)))
+
+        #Ancient tree: an oversized trunk + canopy with a carved face whose
+        #expression shifts with season_for_day — cheerful in Spring/Summer,
+        #wistful in Fall, drowsy in Winter.
+        at_draw_x = (ancient_tree_pos[0] - cam_x) * tile_draw_size
+        at_draw_y = (ancient_tree_pos[1] - cam_y) * tile_draw_size - tile_draw_size
+        at_cx = at_draw_x + tile_draw_size * 0.5
+        canopy_color = {"Spring": (110, 170, 90), "Summer": (80, 150, 70),
+                        "Fall": (190, 120, 60), "Winter": (200, 210, 215)}[season_for_day(day)]
+        pygame.draw.rect(screen, (100, 72, 44), (int(at_cx - tile_draw_size * 0.16), int(at_draw_y + tile_draw_size * 1.1),
+                                                    int(tile_draw_size * 0.32), int(tile_draw_size * 0.9)))
+        pygame.draw.circle(screen, canopy_color, (int(at_cx), int(at_draw_y + tile_draw_size * 0.7)),
+                            int(tile_draw_size * 0.75))
+        eye_y = at_draw_y + tile_draw_size * 0.65
+        pygame.draw.circle(screen, (40, 32, 26), (int(at_cx - tile_draw_size * 0.2), int(eye_y)), 2)
+        pygame.draw.circle(screen, (40, 32, 26), (int(at_cx + tile_draw_size * 0.2), int(eye_y)), 2)
+        mouth_y = at_draw_y + tile_draw_size * 0.85
+        season = season_for_day(day)
+        if season in ("Spring", "Summer"):
+            pygame.draw.arc(screen, (40, 32, 26), (at_cx - 10, mouth_y - 6, 20, 12), math.pi, 2 * math.pi, 2)
+        elif season == "Fall":
+            pygame.draw.line(screen, (40, 32, 26), (at_cx - 8, mouth_y), (at_cx + 8, mouth_y), 2)
+        else:
+            pygame.draw.arc(screen, (40, 32, 26), (at_cx - 10, mouth_y - 6, 20, 12), 0, math.pi, 2)
 
         #Outposts / marketplaces: same bottom-anchored, 2-tiles-tall technique as the house
         for outpost in outposts:

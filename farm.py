@@ -2580,7 +2580,7 @@ IDLE_ACTIONS_BY_SPECIES = {
     "pig": ["mud_roll", "truffle_sniff"],
     "sheep": ["rub", "sleep"],
     "cow": ["chew_cud", "groom"],
-    "goat": ["climb", "headbutt"],
+    "goat": ["climb", "headbutt", "nibble"],
 }
 IDLE_ACTION_CHANCE = 0.01  # rolled once per frame an animal is truly idle with no action already playing
 IDLE_ACTION_DURATION = 1.2
@@ -2636,6 +2636,11 @@ def draw_idle_action(screen, species, action, cx, cy, tile_draw_size, ticks):
         lunge = abs(math.sin(ticks * 0.03)) * tile_draw_size * 0.15
         pygame.draw.line(screen, (140, 118, 90), (cx + tile_draw_size * 0.2, cy),
                           (cx + tile_draw_size * 0.2 + lunge, cy), 3)
+    elif species == "goat" and action == "nibble":
+        #Goats famously nibble at whatever's around, not just one thing.
+        nib = abs(math.sin(ticks * 0.03))
+        pygame.draw.circle(screen, (90, 150, 76), (int(cx + tile_draw_size * (0.15 - 0.3 * nib)),
+                                                     int(cy + tile_draw_size * 0.3)), 2)
     elif action == "paw_ground":
         #Bull-only, not species-keyed, since is_bull is a per-animal flag
         #on top of the regular cow species rather than its own species.

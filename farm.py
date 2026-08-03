@@ -1192,6 +1192,12 @@ heatwave_day = None
 HEATWAVE_CHANCE = 0.12
 HEATWAVE_WITHER_MULT = 0.5
 
+#Morning frost: a rare winter dawn event that damages young crops — planted
+#or sprouting tiles have a chance to wither outright when frost hits.
+FROST_CHANCE = 0.12
+FROST_DAY = None
+FROST_KILL_CHANCE = 0.35
+
 
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
@@ -4625,6 +4631,21 @@ while running:
             trigger_ambient_cue("🌡️ A heatwave settles in — crops will wither faster today.")
     elif season_for_day(day) != "Summer":
         heatwave_active = False
+
+    #Morning frost: rolled once per dawn, only in Winter — an instant,
+    #one-time risk to young crops rather than an ongoing state like heatwave.
+    if location == "farm" and is_dawn() and FROST_DAY != day and season_for_day(day) == "Winter":
+        FROST_DAY = day
+        if random.random() < FROST_CHANCE:
+            frosted_any = False
+            for (fx, fy) in list(active_crop_tiles):
+                t = farm[fy][fx]
+                if t["state"] in ("planted", "sprout") and random.random() < FROST_KILL_CHANCE:
+                    t["state"] = "withered"
+                    t["stage_anim"] = 0.0
+                    frosted_any = True
+            if frosted_any:
+                trigger_ambient_cue("❄️ Morning frost damaged some of your young crops...")
 
     #Bubbles: a rare rising bubble spawned from a random pond tile.
     if location == "farm" and water_shapes and random.random() < BUBBLE_CHANCE:

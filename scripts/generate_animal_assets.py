@@ -60,6 +60,12 @@ MOUSE_BELLY = (230, 224, 216, 255)
 MOUSE_EAR = (220, 190, 190, 255)
 MOUSE_EYE = (30, 26, 24, 255)
 
+CHICKEN_BODY = (240, 234, 220, 255)
+CHICKEN_SHADE = (212, 202, 182, 255)
+CHICKEN_COMB = (200, 60, 56, 255)
+CHICKEN_BEAK = (232, 158, 60, 255)
+CHICKEN_EYE = (30, 26, 24, 255)
+
 
 def s(v):
     return v * SCALE
@@ -260,6 +266,28 @@ def make_mouse():
     return canvas.resize((CELL, CELL), Image.NEAREST)
 
 
+def make_chicken():
+    canvas = Image.new("RGBA", (CS, CS), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # body
+    draw.ellipse([s(9), s(14), s(24), s(26)], fill=CHICKEN_BODY)
+    draw.ellipse([s(9), s(20), s(24), s(26)], fill=CHICKEN_SHADE)
+    # head
+    draw.ellipse([s(19), s(8), s(28), s(17)], fill=CHICKEN_BODY)
+    # comb
+    draw.polygon([(s(21), s(9)), (s(22), s(4)), (s(23), s(8))], fill=CHICKEN_COMB)
+    draw.polygon([(s(23), s(8)), (s(24.5), s(3.5)), (s(25.5), s(7.5))], fill=CHICKEN_COMB)
+    # beak + eye
+    draw.polygon([(s(27), s(12)), (s(31), s(13)), (s(27), s(14.5))], fill=CHICKEN_BEAK)
+    draw.ellipse([s(24.5), s(10.5), s(26), s(12)], fill=CHICKEN_EYE)
+    # feet
+    draw.line([(s(14), s(26)), (s(13), s(29))], fill=CHICKEN_BEAK, width=max(1, int(s(0.3))))
+    draw.line([(s(19), s(26)), (s(19.5), s(29))], fill=CHICKEN_BEAK, width=max(1, int(s(0.3))))
+
+    return canvas.resize((CELL, CELL), Image.NEAREST)
+
+
 def main():
     make_rabbit().save(os.path.join(OUT_DIR, "Rabbit.png"))
     make_bird().save(os.path.join(OUT_DIR, "Bird.png"))
@@ -269,7 +297,8 @@ def main():
     make_squirrel().save(os.path.join(OUT_DIR, "Squirrel.png"))
     make_cat().save(os.path.join(OUT_DIR, "Cat.png"))
     make_mouse().save(os.path.join(OUT_DIR, "Mouse.png"))
-    print("wrote Rabbit.png, Bird.png, Fox.png, Deer.png, Hedgehog.png, Squirrel.png, Cat.png, Mouse.png")
+    make_chicken().save(os.path.join(OUT_DIR, "Chicken.png"))
+    print("wrote Rabbit/Bird/Fox/Deer/Hedgehog/Squirrel/Cat/Mouse/Chicken.png")
 
 
 if __name__ == "__main__":

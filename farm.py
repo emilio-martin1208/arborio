@@ -199,10 +199,11 @@ footprint_toggle = False  # alternates which foot fell last
 ANIMAL_IMAGES = {"rabbit": load_image("Rabbit.png"), "bird": load_image("Bird.png"),
                   "fox": load_image("Fox.png"), "deer": load_image("Deer.png"),
                   "hedgehog": load_image("Hedgehog.png"), "squirrel": load_image("Squirrel.png"),
-                  "cat": load_image("Cat.png"), "mouse": load_image("Mouse.png")}
+                  "cat": load_image("Cat.png"), "mouse": load_image("Mouse.png"),
+                  "chicken": load_image("Chicken.png")}
 ANIMAL_IMAGES_FLIPPED = {k: pygame.transform.flip(v, True, False) for k, v in ANIMAL_IMAGES.items()}
 ANIMAL_SPEED = {"rabbit": 1.3, "bird": 1.8, "fox": 1.6, "deer": 1.5, "hedgehog": 0.7, "squirrel": 1.7,
-                 "cat": 1.2, "mouse": 1.9}
+                 "cat": 1.2, "mouse": 1.9, "chicken": 1.0}
 
 # Marketplace structures
 OUTPOST_IMAGES = [load_image(f"Outpost{i}.png") for i in range(1, 5)]        # small stall: 1 tile wide x 2 tall

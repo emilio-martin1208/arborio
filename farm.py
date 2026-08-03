@@ -980,6 +980,12 @@ FARM_BLOCKED_TILES.add(wishing_well_pos)
 wishing_well_used_day = 0
 WISHING_WELL_COST = 3
 
+#Wind chimes: another fixed decor prop, hung right by the house door —
+#its ambient cue trigger lives with the other per-frame ticks further down.
+wind_chimes_pos = (HOUSE_POS[0] - 1, DOOR_ROW)
+FARM_BLOCKED_TILES.add(wind_chimes_pos)
+WIND_CHIME_CHANCE = 0.0006
+
 #House interior: a small fixed room, no camera scrolling needed
 location = "farm"  # or "house"
 INTERIOR_W, INTERIOR_H = 6, 5
@@ -4420,6 +4426,8 @@ while running:
         trigger_ambient_cue("🦉 An owl hoots somewhere in the dark...")
     elif location == "farm" and is_night() and random.random() < CRICKET_CHIRP_CHANCE:
         trigger_ambient_cue("🦗 Crickets chirp in the grass...")
+    elif location == "farm" and random.random() < WIND_CHIME_CHANCE:
+        trigger_ambient_cue("The wind chimes by the door tinkle softly...")
 
     #Frogs: age out after FROG_LIFETIME, same idea as the mushrooms.
     if frogs:
@@ -5874,6 +5882,19 @@ while running:
         pygame.draw.polygon(screen, (140, 60, 50),
                              [(ww_cx - ww_r, ww_cy - ww_r * 0.9), (ww_cx, ww_cy - ww_r * 1.7),
                               (ww_cx + ww_r, ww_cy - ww_r * 0.9)])
+
+        #Wind chimes: a little sway synced to the same clock other gentle
+        #back-and-forth motions (tree/crop sway) use.
+        wc_draw_x = (wind_chimes_pos[0] - cam_x) * tile_draw_size
+        wc_draw_y = (wind_chimes_pos[1] - cam_y) * tile_draw_size
+        wc_sway = math.sin(current_ticks * 0.0018) * tile_draw_size * 0.08
+        wc_top_x = wc_draw_x + tile_draw_size * 0.5
+        wc_top_y = wc_draw_y + tile_draw_size * 0.1
+        pygame.draw.line(screen, (150, 130, 90), (wc_top_x, wc_top_y), (wc_top_x, wc_top_y + tile_draw_size * 0.14), 2)
+        for i in range(3):
+            chime_x = wc_top_x - tile_draw_size * 0.15 + i * tile_draw_size * 0.15 + wc_sway
+            pygame.draw.line(screen, (200, 190, 140), (wc_top_x, wc_top_y + tile_draw_size * 0.14),
+                              (chime_x, wc_top_y + tile_draw_size * 0.4), 1)
 
         #Outposts / marketplaces: same bottom-anchored, 2-tiles-tall technique as the house
         for outpost in outposts:

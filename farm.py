@@ -1557,6 +1557,30 @@ water_shapes = []  # {"surface", "x", "y", "w", "h", "tiles"} — one precompute
 fish = []
 FISH_SPEED = 0.7
 
+#Frogs: a post-rain-only critter, like the mushrooms, but living on the
+#shoreline of a lake/pond rather than scattered across a biome — hop in
+#place with a little croak cue, then vanish again after FROG_LIFETIME.
+frogs = []  # {x, y, life, max_life, hop_phase}
+FROG_LIFETIME = 45.0
+
+
+def spawn_frogs_near_ponds():
+    spawned_any = False
+    for shape in water_shapes:
+        tiles = shape["tiles"]
+        if not tiles or random.random() > 0.35:
+            continue
+        wx, wy = random.choice(list(tiles))
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            lx, ly = wx + dx, wy + dy
+            if (0 <= lx < WORLD_W and 0 <= ly < WORLD_H
+                    and (lx, ly) not in tiles and farm[ly][lx]["state"] == "grass"):
+                frogs.append({"x": lx, "y": ly, "life": 0.0, "max_life": FROG_LIFETIME,
+                              "hop_phase": random.uniform(0, 6.28)})
+                spawned_any = True
+                break
+    return spawned_any
+
 
 def spawn_fish_for(water_shape):
     """A few peaceful fish per lake, wandering only within that lake's exact
@@ -3691,6 +3715,8 @@ while running:
             if not is_night():
                 rainbow_active = True
                 rainbow_timer = 0.0
+            if spawn_frogs_near_ponds():
+                trigger_ambient_cue("🐸 Frogs croak near the water...")
     elif snowing:
         snow_timer += dt
         if snow_timer >= SNOW_DURATION:
@@ -3746,6 +3772,12 @@ while running:
         ambient_cue_cooldown_timer -= dt
     elif location == "farm" and is_night() and random.random() < OWL_HOOT_CHANCE:
         trigger_ambient_cue("🦉 An owl hoots somewhere in the dark...")
+
+    #Frogs: age out after FROG_LIFETIME, same idea as the mushrooms.
+    if frogs:
+        for frog in frogs:
+            frog["life"] += dt
+        frogs[:] = [f for f in frogs if f["life"] < f["max_life"]]
 
     #Age out temporary world collectibles (e.g. post-rain mushrooms) that
     #were never picked up — permanent ones (clovers) have max_life=None.
@@ -4744,6 +4776,20 @@ while running:
             fish_scaled = pygame.transform.scale(sprite, (fish_size, fish_size))
             screen.blit(fish_scaled, (f_draw_x + (tile_draw_size - fish_size) // 2,
                                        f_draw_y + (tile_draw_size - fish_size) // 2 - bob))
+
+        #Frogs: a small green body that hops in place near a pond's shore
+        for frog in frogs:
+            if frog["x"] < cam_x_i - 1 or frog["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if frog["y"] < cam_y_i - 1 or frog["y"] > cam_y_i + visible_rows + 1:
+                continue
+            hop = abs(math.sin(current_ticks * 0.006 + frog["hop_phase"])) * tile_draw_size * 0.18
+            frog_draw_x = (frog["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            frog_draw_y = (frog["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.6 - hop
+            frog_r = max(2, int(tile_draw_size * 0.14))
+            pygame.draw.ellipse(screen, (86, 150, 70),
+                                 (int(frog_draw_x - frog_r), int(frog_draw_y - frog_r * 0.7),
+                                  frog_r * 2, int(frog_r * 1.4)))
 
         #Falling leaves: small fading dots drifting down from deciduous
         #trees, colored to match that tree's canopy

@@ -4462,6 +4462,9 @@ while running:
                             iron_gain = random.randint(1, 2)
                             resources["iron"] += iron_gain
                             toast += f", +{iron_gain} Iron"
+                        if random.random() < 0.06:
+                            emeralds += 20
+                            toast += ", cracked open a geode inside! +20 emeralds"
                         market_message, market_message_timer = toast, 1.6
 
             # Entering a ruin (facing it, outdoors, press E) — descends into

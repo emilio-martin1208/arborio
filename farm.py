@@ -2584,6 +2584,7 @@ IDLE_ACTIONS_BY_SPECIES = {
     "goat": ["climb", "headbutt", "nibble"],
     "wild_horse": ["flick_tail", "sleep"],
     "rabbit": ["stand", "groom"],
+    "cat": ["stretch"],
 }
 IDLE_ACTION_CHANCE = 0.01  # rolled once per frame an animal is truly idle with no action already playing
 IDLE_ACTION_DURATION = 1.2
@@ -2620,6 +2621,10 @@ def draw_idle_action(screen, species, action, cx, cy, tile_draw_size, ticks):
         stretch = abs(math.sin(ticks * 0.02)) * tile_draw_size * 0.15
         pygame.draw.line(screen, (222, 208, 194), (cx, cy - tile_draw_size * 0.2),
                           (cx, cy - tile_draw_size * 0.2 - stretch), 3)
+    elif species == "cat" and action == "stretch":
+        reach = abs(math.sin(ticks * 0.015)) * tile_draw_size * 0.18
+        pygame.draw.line(screen, (150, 138, 130), (cx + tile_draw_size * 0.15, cy + tile_draw_size * 0.2),
+                          (cx + tile_draw_size * 0.15 + reach, cy + tile_draw_size * 0.2), 2)
     elif species == "rabbit" and action == "groom":
         lick = math.sin(ticks * 0.025) * tile_draw_size * 0.05
         pygame.draw.line(screen, (232, 176, 178), (cx - tile_draw_size * 0.1, cy - tile_draw_size * 0.1),

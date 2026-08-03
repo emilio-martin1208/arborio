@@ -2387,6 +2387,9 @@ def generate_trades(kind):
             qty = random.randint(2, 4)
             price = max(1, round(qty * value * random.uniform(1.1, 1.5)))
             trades.append({"type": "sell_good", "item": good_key, "qty": qty, "price": price})
+        # A lottery ticket: a flat-cost gamble, mostly a loss but with a
+        # rare big payout — only marketplaces run one, not small outposts.
+        trades.append({"type": "lottery", "price": 10})
 
     return trades
 
@@ -4631,6 +4634,22 @@ while running:
                                 market_message = f"Pick sharpened — now Lvl {pick_tool['level']}!"
                             else:
                                 market_message = "Not enough emeralds!"
+                        elif trade["type"] == "lottery":
+                            if emeralds >= trade["price"]:
+                                emeralds -= trade["price"]
+                                roll = random.random()
+                                if roll < 0.03:
+                                    winnings = trade["price"] * 20
+                                    emeralds += winnings
+                                    market_message = f"JACKPOT! The lottery ticket pays out {winnings}g!"
+                                elif roll < 0.15:
+                                    winnings = trade["price"] * 3
+                                    emeralds += winnings
+                                    market_message = f"A small win! +{winnings}g from the lottery."
+                                else:
+                                    market_message = "No luck this time — better luck next ticket."
+                            else:
+                                market_message = "Not enough emeralds!"
                         market_message_timer = 2.5
                 elif not inventory_open and not level_up_pending and not dialogue_open and not map_open and location == "farm":
                     fdx, fdy = FACING_DELTA[player_facing]
@@ -6554,6 +6573,8 @@ while running:
                 label = f"Buy the {trade['tool_name'].capitalize()} — {trade['price']}g"
             elif trade["type"] == "buy_pick_upgrade":
                 label = f"Sharpen Pick (+1 lvl) — {trade['price']}g"
+            elif trade["type"] == "lottery":
+                label = f"Buy a Lottery Ticket — {trade['price']}g"
             else:
                 label = f"{trade['type']} ({trade.get('price', '?')}g)"
             color = TEXT_GOLD if i == market_selection else TEXT_CREAM

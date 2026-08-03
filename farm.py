@@ -1202,6 +1202,13 @@ FROST_KILL_CHANCE = 0.35
 #Fall (heading out) and Spring (heading back) — screen-space, like the moon.
 migrating_flock = []  # {x, y, vx} in screen pixels, one entry per bird
 
+#Animal footprints in snow: like the player's own footprints, but for
+#wandering animals, winter-only, and rendered as pale snow indents rather
+#than dark dirt marks — a separate list since the two need different colors.
+animal_tracks = []  # {x, y, life, max_life}
+ANIMAL_TRACK_LIFETIME = 4.0
+ANIMAL_TRACK_CHANCE = 0.03  # rolled once per frame an animal is actually moving
+
 
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
@@ -4061,9 +4068,17 @@ while running:
                 animal["y"] += tdy / tdist * step
                 if abs(tdx) > 0.01:
                     animal["facing_right"] = tdx > 0
+                if season_for_day(day) == "Winter" and random.random() < ANIMAL_TRACK_CHANCE:
+                    animal_tracks.append({"x": animal["x"], "y": animal["y"],
+                                          "life": 0.0, "max_life": ANIMAL_TRACK_LIFETIME})
             else:
                 animal["state"] = "idle"
                 animal["timer"] = random.uniform(1.5, 4.0)
+
+    if animal_tracks:
+        for tr in animal_tracks:
+            tr["life"] += dt
+        animal_tracks[:] = [tr for tr in animal_tracks if tr["life"] < tr["max_life"]]
 
     #Fish: peaceful, purely ambient — wander only within their own lake's
     #exact tile set (never the surrounding land), no reaction to the player.
@@ -5835,6 +5850,23 @@ while running:
             fp_draw_x = (fp["x"] - cam_x) * tile_draw_size + (tile_draw_size - fp_w) // 2
             fp_draw_y = (fp["y"] - cam_y) * tile_draw_size + (tile_draw_size - fp_h) // 2
             screen.blit(fp_surf, (fp_draw_x, fp_draw_y))
+
+        #Animal footprints in snow: pale indents, same fade math as the
+        #player's own dirt footprints but a snow-appropriate color.
+        for tr in animal_tracks:
+            if tr["x"] < cam_x_i - 1 or tr["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if tr["y"] < cam_y_i - 1 or tr["y"] > cam_y_i + visible_rows + 1:
+                continue
+            t = tr["life"] / tr["max_life"]
+            alpha = max(0, int(180 * (1 - t)))
+            tr_w = max(2, int(tile_draw_size * 0.16))
+            tr_h = max(2, int(tile_draw_size * 0.1))
+            tr_surf = pygame.Surface((tr_w, tr_h), pygame.SRCALPHA)
+            pygame.draw.ellipse(tr_surf, (170, 185, 200, alpha), (0, 0, tr_w, tr_h))
+            tr_draw_x = (tr["x"] - cam_x) * tile_draw_size + (tile_draw_size - tr_w) // 2
+            tr_draw_y = (tr["y"] - cam_y) * tile_draw_size + (tile_draw_size - tr_h) // 2
+            screen.blit(tr_surf, (tr_draw_x, tr_draw_y))
 
         #Lakes/ponds: one precomputed smooth-shore image per water body,
         #drawn on top of the grass already rendered underneath it, instead

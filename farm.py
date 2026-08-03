@@ -5993,6 +5993,17 @@ while running:
             ruin_draw_y = (ruin["y"] - cam_y) * tile_draw_size - tile_draw_size
             ruin_scaled = pygame.transform.scale(IMG_RUIN, (tile_draw_size * 2, tile_draw_size * 2))
             screen.blit(ruin_scaled, (ruin_draw_x, ruin_draw_y))
+            #Cobwebs: a small hand-drawn web tucked in a top corner of every
+            #ruin — these sit abandoned and unused, same idea as moss/vines.
+            web_cx = ruin_draw_x + tile_draw_size * 1.75
+            web_cy = ruin_draw_y + tile_draw_size * 0.25
+            web_r = tile_draw_size * 0.18
+            for i in range(4):
+                ang = i * (math.pi / 2 / 3) + math.pi
+                pygame.draw.line(screen, (210, 210, 200), (web_cx, web_cy),
+                                  (web_cx + math.cos(ang) * web_r, web_cy + math.sin(ang) * web_r), 1)
+            pygame.draw.arc(screen, (210, 210, 200), (web_cx - web_r, web_cy - web_r, web_r * 2, web_r * 2),
+                             math.pi, 1.6 * math.pi, 1)
 
         #Wells: a single flush tile, no overhang, so no vertical offset needed
         for well in wells:

@@ -820,6 +820,13 @@ DOOR_ROW = HOUSE_POS[1] + 1
 DOOR_TILES = {(HOUSE_POS[0] + dx, DOOR_ROW) for dx in range(2)}
 HOUSE_OVERHANG_TILES = {(x, HOUSE_POS[1] - 1) for x in range(HOUSE_POS[0], HOUSE_POS[0] + 2)}
 FARM_BLOCKED_TILES = HOUSE_TILES | DOOR_TILES | HOUSE_OVERHANG_TILES  # kept clear of trees/crops
+#Tiles actually occupied by a placed structure (building footprint/overhang,
+#well, dock, decor prop, kingdom wall/gate) — always a subset of
+#FARM_BLOCKED_TILES. spawn_dock_near checks this instead of the broader
+#FARM_BLOCKED_TILES so it can still hug the shore (which FARM_BLOCKED_TILES
+#also keeps clear of, via each water body's buffer ring) while still
+#refusing to land on top of a real structure or another dock.
+STRUCTURE_TILES = set(HOUSE_TILES | DOOR_TILES | HOUSE_OVERHANG_TILES)
 
 #Biomes: large, coarse-noise regions (much bigger than the fine grass-color
 #patches above) assign each part of the world to a distinct biome. The area
@@ -984,6 +991,22 @@ rain_drops = []
 snow_timer = 0.0
 snowing = False
 snow_flakes = []
+
+
+def is_night(t=None):
+    """True during the dusk-to-dawn stretch of the day cycle (day_timer's
+    fraction through DAY_LENGTH) — the shared clock the growing list of
+    night-only ambience (owls, fireflies, shooting stars...) all check
+    against, so they stay in sync with each other and with the HUD clock."""
+    frac = (day_timer / DAY_LENGTH) if t is None else t
+    return frac >= 0.78 or frac < 0.22
+
+
+#Shooting stars: rare, clickable night-sky streaks — catching one before it
+#fades grants a random seed, a small "look up" reward for exploring at night.
+shooting_stars = []  # {sx, sy, vx, vy, life, max_life} in screen pixels
+SHOOTING_STAR_CHANCE = 0.0012  # per-frame spawn chance while it's night
+SHOOTING_STAR_CLICK_RADIUS = 22
 
 #Tree spawn
 TREE_INTERVAL = 20.0
@@ -1777,7 +1800,7 @@ def attempt_place_building(btype):
     for (px, py) in footprint:
         farm[py][px]["state"] = "building"
         farm[py][px]["building_id"] = building_id
-    FARM_BLOCKED_TILES.update(check_region)
+    _reserve(check_region)
     farm_buildings.append({
         "type": btype, "x": fx, "y": fy, "footprint": footprint, "stage": "building",
         "progress_days": 0.0, "condition": 100.0, "processing": None, "stock": 0,
@@ -1943,7 +1966,7 @@ def spawn_outpost(kind):
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "market"
             farm[fy][fx]["market_id"] = market_id
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
         variant_pool = MARKETPLACE_IMAGES if kind == "marketplace" else OUTPOST_IMAGES
         outposts.append({"x": x, "y": y, "kind": kind, "trades": generate_trades(kind),
                           "variant": random.randrange(len(variant_pool))})
@@ -2003,6 +2026,14 @@ def _full_footprint(footprint):
     return footprint | {(x, y - 1) for (x, y) in footprint}
 
 
+def _reserve(tiles):
+    """Marks tiles as occupied by an actual placed structure — everywhere a
+    building/well/dock/decor prop reserves its footprint, on top of the
+    ordinary FARM_BLOCKED_TILES update. See STRUCTURE_TILES."""
+    FARM_BLOCKED_TILES.update(tiles)
+    STRUCTURE_TILES.update(tiles)
+
+
 def spawn_stable_near(cx, cy, bounds=None):
     for _ in range(60):
         ox = cx + random.randint(-5, 5)
@@ -2021,7 +2052,7 @@ def spawn_stable_near(cx, cy, bounds=None):
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "stable"
             farm[fy][fx]["stable_id"] = stable_id
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
         stables.append({"x": ox, "y": oy})
         return
 
@@ -2061,7 +2092,7 @@ def spawn_well_near(cx, cy, bounds=None):
             continue
 
         farm[wy][wx]["state"] = "well"
-        FARM_BLOCKED_TILES.add((wx, wy))
+        _reserve({(wx, wy)})
         wells.append({"x": wx, "y": wy})
         return
 
@@ -2082,7 +2113,7 @@ def spawn_shrine_near(cx, cy, bounds=None):
 
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "shrine"
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
         shrines.append({"x": sx, "y": sy})
         return
 
@@ -2135,7 +2166,7 @@ def spawn_smithy_near(cx, cy, bounds=None):
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "smithy"
             farm[fy][fx]["smithy_id"] = smithy_id
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
         smithies.append({"x": ox, "y": oy, "trades": make_smithy_trades()})
         return
 
@@ -2192,7 +2223,7 @@ def spawn_fisherman_shack_near(cx, cy, bounds=None):
                 for (fx, fy) in footprint:
                     farm[fy][fx]["state"] = "shack"
                     farm[fy][fx]["shack_id"] = shack_id
-                FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+                _reserve(_full_footprint(footprint))
                 shacks.append({"x": ox, "y": oy, "trades": make_shack_trades()})
                 return
 
@@ -2213,7 +2244,7 @@ def spawn_flavor_house_near(cx, cy, flavor):
             continue
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "flavor_house"
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
         flavor_buildings.append({"x": ox, "y": oy, "flavor": flavor})
         return
 
@@ -2285,7 +2316,7 @@ def spawn_outpost_near(cx, cy, kind, bounds=None):
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "market"
             farm[fy][fx]["market_id"] = market_id
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
         variant_pool = MARKETPLACE_IMAGES if kind == "marketplace" else OUTPOST_IMAGES
         outposts.append({"x": ox, "y": oy, "kind": kind, "trades": generate_trades(kind),
                           "variant": random.randrange(len(variant_pool))})
@@ -2313,7 +2344,7 @@ def spawn_village_in_biome(target_biome):
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "market"
             farm[fy][fx]["market_id"] = market_id
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
         outposts.append({"x": x, "y": y, "kind": "marketplace", "trades": generate_trades("marketplace"),
                           "variant": random.randrange(len(MARKETPLACE_IMAGES))})
         spawn_village(x, y)
@@ -2344,7 +2375,7 @@ def spawn_tavern_near(cx, cy, bounds=None):
             continue
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "tavern"
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
         taverns.append({"x": ox, "y": oy})
         return
 
@@ -2362,7 +2393,7 @@ def spawn_decor_horse_near(cx, cy, bounds=None):
         if _outside_bounds({(ox, oy)}, bounds):
             continue
         farm[oy][ox]["decor"] = None
-        FARM_BLOCKED_TILES.add((ox, oy))
+        _reserve({(ox, oy)})
         decor_horses.append({"x": ox, "y": oy, "flip": random.random() < 0.5})
         return
 
@@ -2383,7 +2414,7 @@ def spawn_carriage_near(cx, cy, bounds=None):
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "carriage"
             farm[fy][fx]["decor"] = None
-        FARM_BLOCKED_TILES.update(footprint)
+        _reserve(footprint)
         decor_carriages.append({"x": ox, "y": oy})
         return
 
@@ -2406,7 +2437,7 @@ def spawn_town_construction_site_near(cx, cy, bounds=None):
             continue
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "town_site"
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
         town_construction_sites.append({"x": ox, "y": oy})
         return
 
@@ -2444,9 +2475,15 @@ def spawn_dock_near(cx, cy, search_radius=14):
                 # Note: shoreline tiles are deliberately already in
                 # FARM_BLOCKED_TILES (stamp_water_body's 1-tile buffer
                 # ring, so trees/rocks keep off the shore) — that's
-                # exactly where a dock belongs, so only reject on an
-                # actual building/other placed structure.
-                if farm[sy][sx]["state"] != "grass":
+                # exactly where a dock belongs, so this checks
+                # STRUCTURE_TILES (actual placed structures) rather than
+                # FARM_BLOCKED_TILES itself. A plain state == "grass" check
+                # isn't enough on its own: a 2-tall building's overhang row
+                # is reserved but deliberately left in the "grass" state,
+                # so a dock could otherwise land right on top of it (or of
+                # an earlier dock, which also only marks state via
+                # "decor").
+                if farm[sy][sx]["state"] != "grass" or (sx, sy) in STRUCTURE_TILES:
                     continue
                 best = (d2, wx, wy, dname, sx, sy)
                 break
@@ -2454,7 +2491,7 @@ def spawn_dock_near(cx, cy, search_radius=14):
         return
     _, wx, wy, dname, sx, sy = best
     farm[sy][sx]["decor"] = None
-    FARM_BLOCKED_TILES.add((sx, sy))
+    _reserve({(sx, sy)})
     docks.append({"x": sx, "y": sy, "dir": dname})
     boats.append({"x": float(wx), "y": float(wy), "bob_phase": random.uniform(0, 6.28)})
 
@@ -2524,7 +2561,7 @@ def spawn_town(target_biome=None):
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "market"
             farm[fy][fx]["market_id"] = market_id
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
         outposts.append({"x": x, "y": y, "kind": "marketplace", "trades": generate_trades("marketplace"),
                           "variant": random.randrange(len(MARKETPLACE_IMAGES))})
 
@@ -2644,8 +2681,8 @@ def spawn_kingdom(target_biome=None):
         for (gx, gy) in gate_tiles:
             farm[gy][gx]["state"] = "gate"
             farm[gy][gx]["kingdom_id"] = kingdom_id
-        FARM_BLOCKED_TILES.update(wall_tiles)
-        FARM_BLOCKED_TILES.update(_full_footprint(gate_tiles))  # the gate sprite is 2 tiles tall too
+        _reserve(wall_tiles)
+        _reserve(_full_footprint(gate_tiles))  # the gate sprite is 2 tiles tall too
 
         toll = random.randint(40, 90)
         name = KINGDOM_NAMES[kingdom_id % len(KINGDOM_NAMES)]
@@ -2659,7 +2696,7 @@ def spawn_kingdom(target_biome=None):
         for (fx, fy) in cfoot:
             farm[fy][fx]["state"] = "market"
             farm[fy][fx]["market_id"] = market_id
-        FARM_BLOCKED_TILES.update(_full_footprint(cfoot))
+        _reserve(_full_footprint(cfoot))
         outposts.append({"x": cx, "y": cy, "kind": "marketplace", "trades": generate_trades("marketplace"),
                           "variant": random.randrange(len(MARKETPLACE_IMAGES))})
 
@@ -2785,7 +2822,7 @@ def spawn_monk_temple_near(cx, cy):
             continue
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "monk_temple"
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
         monk_temple = {"x": ox, "y": oy, "looted": False}
         return
 
@@ -2955,7 +2992,7 @@ def spawn_ruin():
         for (fx, fy) in footprint:
             farm[fy][fx]["state"] = "ruin"
             farm[fy][fx]["ruin_id"] = ruin_id
-        FARM_BLOCKED_TILES.update(_full_footprint(footprint))
+        _reserve(_full_footprint(footprint))
 
         ux, uy = pick_underworld_arrival()
         underworld[uy][ux]["state"] = "portal"
@@ -3262,6 +3299,32 @@ while running:
         for fp in footprints:
             fp["life"] += dt
         footprints[:] = [fp for fp in footprints if fp["life"] < fp["max_life"]]
+
+    #Shooting stars: streak in from a random screen edge at night, fade
+    #and vanish on their own if never clicked
+    if location == "farm":
+        if is_night() and random.random() < SHOOTING_STAR_CHANCE:
+            view_h = HEIGHT - UI_BAR_HEIGHT
+            edge = random.choice(["top", "left", "right"])
+            if edge == "top":
+                sx, sy = random.uniform(0, WIDTH), -10
+            elif edge == "left":
+                sx, sy = -10, random.uniform(0, view_h * 0.5)
+            else:
+                sx, sy = WIDTH + 10, random.uniform(0, view_h * 0.5)
+            angle = random.uniform(0.9, 1.4) if edge != "top" or sx < WIDTH / 2 else random.uniform(1.7, 2.2)
+            speed = random.uniform(260, 340)
+            shooting_stars.append({
+                "sx": sx, "sy": sy,
+                "vx": math.cos(angle) * speed, "vy": math.sin(angle) * speed,
+                "life": 0.0, "max_life": random.uniform(1.4, 2.0),
+            })
+        for star in shooting_stars:
+            star["sx"] += star["vx"] * dt
+            star["sy"] += star["vy"] * dt
+            star["life"] += dt
+        shooting_stars[:] = [s for s in shooting_stars if s["life"] < s["max_life"]
+                             and -20 <= s["sx"] <= WIDTH + 20 and -20 <= s["sy"] <= HEIGHT + 20]
 
     #Region banners: a Skyrim-style name card pops up the moment the player
     #steps into a named kingdom or town, and only on that transition — not
@@ -4203,9 +4266,20 @@ while running:
         elif event.type==pygame.MOUSEWHEEL:
             zoom = max(0.5, min(2.0, zoom + 0.1*event.y))
 
-        #Hotbar: pick up a slot on mouse-down
+        #Hotbar: pick up a slot on mouse-down (also checks for a shooting
+        #star under the click first — catching one grants a random seed)
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if not level_up_pending:
+            caught_star = None
+            for star in shooting_stars:
+                if math.hypot(event.pos[0] - star["sx"], event.pos[1] - star["sy"]) <= SHOOTING_STAR_CLICK_RADIUS:
+                    caught_star = star
+                    break
+            if caught_star is not None:
+                shooting_stars.remove(caught_star)
+                won_seed = random.choice(list(SEEDS.keys()))
+                discover_seed(won_seed, count=2)
+                market_message, market_message_timer = f"Caught a shooting star — 2 {SEEDS[won_seed]['name']} seeds!", 2.6
+            elif not level_up_pending:
                 drag_slot = hotbar_slot_at(event.pos)
 
         #Hotbar: drop on mouse-up — same slot (or a miss) selects it,
@@ -5025,6 +5099,20 @@ while running:
             pygame.draw.circle(snow_surf, (255, 255, 255, 210),
                                 (int(flake["x"]), int(flake["y"])), int(flake["size"]))
         screen.blit(snow_surf, (0, 0))
+
+    #Shooting stars: a bright head with a fading tail along its direction
+    #of travel — click one before it burns out for a random seed
+    if location == "farm" and shooting_stars:
+        star_surf = pygame.Surface((WIDTH, HEIGHT - UI_BAR_HEIGHT), pygame.SRCALPHA)
+        for star in shooting_stars:
+            t = star["life"] / star["max_life"]
+            alpha = int(255 * (1 - t))
+            speed = math.hypot(star["vx"], star["vy"]) or 1
+            tail_x = star["sx"] - star["vx"] / speed * 34
+            tail_y = star["sy"] - star["vy"] / speed * 34
+            pygame.draw.line(star_surf, (255, 250, 210, max(0, alpha // 2)), (star["sx"], star["sy"]), (tail_x, tail_y), 2)
+            pygame.draw.circle(star_surf, (255, 255, 235, alpha), (int(star["sx"]), int(star["sy"])), 3)
+        screen.blit(star_surf, (0, 0))
 
     #Vignette: fade the edges of the game view (not the UI bar below it)
     screen.blit(VIGNETTE, (0, 0))

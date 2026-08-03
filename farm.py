@@ -2627,6 +2627,13 @@ def draw_idle_action(screen, species, action, cx, cy, tile_draw_size, ticks):
         lick = math.sin(ticks * 0.015) * tile_draw_size * 0.06
         pygame.draw.line(screen, (220, 190, 180), (cx + tile_draw_size * 0.15, cy + tile_draw_size * 0.1),
                           (cx + tile_draw_size * 0.3 + lick, cy + tile_draw_size * 0.05), 2)
+    elif action == "paw_ground":
+        #Bull-only, not species-keyed, since is_bull is a per-animal flag
+        #on top of the regular cow species rather than its own species.
+        kick = abs(math.sin(ticks * 0.025)) * tile_draw_size * 0.1
+        pygame.draw.arc(screen, (140, 110, 80),
+                         (cx - tile_draw_size * 0.15, cy + tile_draw_size * 0.35 - kick,
+                          tile_draw_size * 0.3, tile_draw_size * 0.15), 0, math.pi, 2)
 
 
 def spawn_animal():
@@ -2640,6 +2647,9 @@ def spawn_animal():
                 "state": "idle", "timer": random.uniform(0.0, 3.0),
                 "facing_right": True,
                 "idle_action": None, "idle_action_timer": 0.0,
+                #A minority of cows are tagged as bulls — same sprite, but
+                #eligible for the bull-only "paw the ground" idle action.
+                "is_bull": species == "cow" and random.random() < 0.25,
             })
             return
 
@@ -4212,7 +4222,9 @@ while running:
                 if animal["idle_action_timer"] <= 0:
                     animal["idle_action"] = None
             elif random.random() < IDLE_ACTION_CHANCE:
-                pool = IDLE_ACTIONS_BY_SPECIES.get(animal["species"])
+                pool = list(IDLE_ACTIONS_BY_SPECIES.get(animal["species"], []))
+                if animal.get("is_bull"):
+                    pool.append("paw_ground")
                 if pool:
                     animal["idle_action"] = random.choice(pool)
                     animal["idle_action_timer"] = IDLE_ACTION_DURATION

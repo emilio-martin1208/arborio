@@ -1060,6 +1060,7 @@ COLLECTIBLE_COLORS = {
     "truffle": (120, 90, 60),
     "lucky_rock": (225, 225, 210),
     "fossil": (196, 178, 140),
+    "ancient_coin": (212, 175, 55),
 }
 COLLECTIBLE_MESSAGES = {
     "four_leaf_clover": "A four-leaf clover! Lucky find (+15 emeralds).",
@@ -1068,6 +1069,7 @@ COLLECTIBLE_MESSAGES = {
     "truffle": "Dug up a rare truffle! (+25 emeralds)",
     "lucky_rock": "A smooth lucky rock! (+12 emeralds)",
     "fossil": "Dug up an ancient fossil! (+18 emeralds)",
+    "ancient_coin": "Found an ancient coin near the ruins! (+10 emeralds)",
 }
 MUSHROOM_LIFETIME = 90.0  # seconds before an uncollected post-rain mushroom withers
 
@@ -1085,6 +1087,24 @@ def spawn_collectible_scattered(kind, count, biomes=None):
             continue
         world_collectibles.append({"x": x, "y": y, "kind": kind})
         placed += 1
+
+
+def spawn_collectible_near_points(kind, points, per_point=2, radius=6):
+    """Scatters a few of `kind` around each (x, y) in points — for finds
+    tied to a specific landmark (ancient coins near ruins) rather than a
+    whole biome."""
+    for (cx, cy) in points:
+        placed = 0
+        attempts = 0
+        while placed < per_point and attempts < per_point * 40:
+            attempts += 1
+            x, y = cx + random.randint(-radius, radius), cy + random.randint(-radius, radius)
+            if not (0 <= x < WORLD_W and 0 <= y < WORLD_H):
+                continue
+            if farm[y][x]["state"] != "grass" or (x, y) in FARM_BLOCKED_TILES:
+                continue
+            world_collectibles.append({"x": x, "y": y, "kind": kind})
+            placed += 1
 
 
 def spawn_collectible_burst(kind, count, biomes=None, lifetime=None):
@@ -1121,6 +1141,8 @@ def collect_world_item(kind):
         emeralds += 12
     elif kind == "fossil":
         emeralds += 18
+    elif kind == "ancient_coin":
+        emeralds += 10
 
 #Tree spawn
 TREE_INTERVAL = 20.0
@@ -3200,6 +3222,8 @@ def spawn_ruin():
 
 for _ in range(12):
     spawn_ruin()
+
+spawn_collectible_near_points("ancient_coin", [(r["x"], r["y"]) for r in ruins], per_point=2, radius=6)
 
 
 def purify_around_ruin(ruin):

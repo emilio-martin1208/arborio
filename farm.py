@@ -5892,6 +5892,16 @@ while running:
                                   tile_draw_size * 0.64, tile_draw_size * 0.4), math.pi, 2 * math.pi, 3)
                 pygame.draw.line(screen, (70, 90, 160), (um_cx, um_cy),
                                   (um_cx, um_cy + tile_draw_size * 0.18), 2)
+            #NPC campfires: a small crackling fire glows beside them in winter.
+            elif season_for_day(day) == "Winter":
+                fire_x = v_draw_x - tile_draw_size * 0.35
+                fire_y = v_draw_y + v_breath + tile_draw_size * 0.75
+                flicker = 0.85 + 0.15 * math.sin(current_ticks * 0.02 + villager["x"] * 5)
+                pygame.draw.circle(screen, (230, 140, 50),
+                                    (int(fire_x), int(fire_y)), max(1, int(tile_draw_size * 0.1 * flicker)))
+                pygame.draw.circle(screen, (250, 200, 90),
+                                    (int(fire_x), int(fire_y - tile_draw_size * 0.04)),
+                                    max(1, int(tile_draw_size * 0.05 * flicker)))
 
         #Peaceful animals: a small hop/bob while moving, flipped to face travel direction
         for animal in animals:

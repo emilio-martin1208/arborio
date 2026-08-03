@@ -1065,6 +1065,7 @@ COLLECTIBLE_COLORS = {
     "message_bottle": (90, 140, 160),
     "treasure_map": (210, 190, 140),
     "lucky_penny": (200, 130, 60),
+    "golden_flower": (240, 200, 40),
 }
 COLLECTIBLE_MESSAGES = {
     "four_leaf_clover": "A four-leaf clover! Lucky find (+15 emeralds).",
@@ -1078,6 +1079,7 @@ COLLECTIBLE_MESSAGES = {
     "message_bottle": "A message in a bottle, from some far-off sailor (+15 emeralds).",
     "treasure_map": "An old treasure map, already dug up by someone else (+30 emeralds).",
     "lucky_penny": "Found a lucky penny (+2 emeralds).",
+    "golden_flower": "A rare golden flower, glowing faintly! (+40 emeralds)",
 }
 MUSHROOM_LIFETIME = 90.0  # seconds before an uncollected post-rain mushroom withers
 
@@ -1177,6 +1179,8 @@ def collect_world_item(kind):
         emeralds += 30
     elif kind == "lucky_penny":
         emeralds += 2
+    elif kind == "golden_flower":
+        emeralds += 40
 
 #Tree spawn
 TREE_INTERVAL = 20.0
@@ -3263,6 +3267,7 @@ spawn_collectible_near_points("ancient_coin", [(r["x"], r["y"]) for r in ruins],
 spawn_collectible_near_points("glass_bottle", water_bodies, per_point=1, radius=5)
 spawn_collectible_scattered("treasure_map", 10, biomes=("desert", "jungle"))
 spawn_collectible_scattered("lucky_penny", 80, biomes=None)
+spawn_collectible_scattered("golden_flower", 6, biomes=("meadow",))
 
 
 def purify_around_ruin(ruin):
@@ -5261,6 +5266,14 @@ while running:
             item_draw_x = (item["x"] - cam_x) * tile_draw_size + tile_draw_size // 2
             item_draw_y = (item["y"] - cam_y) * tile_draw_size + tile_draw_size // 2
             item_color = COLLECTIBLE_COLORS.get(item["kind"], (200, 200, 200))
+            if item["kind"] == "golden_flower":
+                #The one collectible worth a soft pulsing glow — everything
+                #else reads fine as a plain dot, but this one's meant to
+                #catch the eye from a distance.
+                glow_r = int(tile_draw_size * (0.35 + 0.08 * math.sin(current_ticks * 0.004)))
+                glow_surf = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
+                pygame.draw.circle(glow_surf, (*item_color, 90), (glow_r, glow_r), glow_r)
+                screen.blit(glow_surf, (item_draw_x - glow_r, item_draw_y - glow_r))
             pygame.draw.circle(screen, item_color, (int(item_draw_x), int(item_draw_y)), max(2, tile_draw_size // 8))
 
         # --- House exterior: sprite is 2 tiles tall, anchored so its bottom

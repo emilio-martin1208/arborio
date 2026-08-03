@@ -3306,6 +3306,27 @@ def move_player(dx, dy):
                 })
     return moved_any
 
+#Butterflies: pollinate the wild flower decor scattered by DECOR_CHANCE
+#during world-gen. Scanning the whole grid for flower tiles is a one-time
+#cost done here, after world-gen has finished (and any structure placement
+#has already cleared decor it built over) — the ambient tick itself never
+#rescans, it only samples from this precomputed list.
+FLOWER_TILES = [(x, y) for y in range(WORLD_H) for x in range(WORLD_W)
+                if farm[y][x]["decor"] in (IMG_DECOR1, IMG_DECOR2)]
+butterflies = []  # {x, y, home_x, home_y, phase} in world tile coords
+BUTTERFLY_COUNT = 18
+
+
+def _refresh_butterflies():
+    """(Re)stocks the butterfly pool up to BUTTERFLY_COUNT, each fluttering
+    around one random flower tile — called only while it's daytime, since
+    butterflies have no business being out at night."""
+    while len(butterflies) < BUTTERFLY_COUNT and FLOWER_TILES:
+        hx, hy = random.choice(FLOWER_TILES)
+        butterflies.append({"x": float(hx), "y": float(hy), "home_x": hx, "home_y": hy,
+                             "phase": random.uniform(0, 6.28)})
+
+
 #Main Game Loop
 running = True
 while running:
@@ -3435,6 +3456,18 @@ while running:
             fly["y"] += (fly["vy"] + math.cos(ticks * 0.0013 + fly["phase"]) * 6) * dt
             fly["x"] %= WIDTH
             fly["y"] %= view_h
+
+    #Butterflies: flutter in a small loop around whichever flower tile they
+    #spawned near, daytime only — a fixed pool topped up as needed rather
+    #than fully rebuilt, so individuals persist across frames.
+    if location == "farm" and not is_night():
+        _refresh_butterflies()
+        ticks = pygame.time.get_ticks()
+        for bfly in butterflies:
+            bfly["x"] = bfly["home_x"] + math.sin(ticks * 0.0015 + bfly["phase"]) * 1.4
+            bfly["y"] = bfly["home_y"] + math.cos(ticks * 0.0022 + bfly["phase"]) * 1.0
+    elif is_night():
+        butterflies.clear()
 
     #Footprints: just fade out over time, no drift
     if location == "farm":
@@ -4790,6 +4823,23 @@ while running:
             pygame.draw.ellipse(screen, (86, 150, 70),
                                  (int(frog_draw_x - frog_r), int(frog_draw_y - frog_r * 0.7),
                                   frog_r * 2, int(frog_r * 1.4)))
+
+        #Butterflies: two small wings that flap by alternating an ellipse's
+        #width — cheaper than an actual sprite, reads fine at this scale.
+        for bfly in butterflies:
+            if bfly["x"] < cam_x_i - 1 or bfly["x"] > cam_x_i + visible_cols + 1:
+                continue
+            if bfly["y"] < cam_y_i - 1 or bfly["y"] > cam_y_i + visible_rows + 1:
+                continue
+            flap = abs(math.sin(current_ticks * 0.012 + bfly["phase"]))
+            bfly_draw_x = (bfly["x"] - cam_x) * tile_draw_size + tile_draw_size * 0.5
+            bfly_draw_y = (bfly["y"] - cam_y) * tile_draw_size + tile_draw_size * 0.3
+            wing_w = max(2, int(tile_draw_size * (0.06 + 0.08 * flap)))
+            wing_h = max(2, int(tile_draw_size * 0.1))
+            pygame.draw.ellipse(screen, (250, 200, 90),
+                                 (int(bfly_draw_x - wing_w), int(bfly_draw_y - wing_h // 2), wing_w, wing_h))
+            pygame.draw.ellipse(screen, (250, 200, 90),
+                                 (int(bfly_draw_x), int(bfly_draw_y - wing_h // 2), wing_w, wing_h))
 
         #Falling leaves: small fading dots drifting down from deciduous
         #trees, colored to match that tree's canopy

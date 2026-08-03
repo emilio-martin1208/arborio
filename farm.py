@@ -1185,6 +1185,13 @@ fog_timer = 0.0
 FOG_CHANCE = 0.12
 FOG_DURATION = 25.0
 
+#Heatwaves: a rare summer stretch where grown crops wither faster than
+#usual — decided once per day, active for the rest of that in-game day.
+heatwave_active = False
+heatwave_day = None
+HEATWAVE_CHANCE = 0.12
+HEATWAVE_WITHER_MULT = 0.5
+
 
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
@@ -4610,6 +4617,15 @@ while running:
         if fog_timer >= FOG_DURATION:
             fog_active = False
 
+    #Heatwaves: rolled once per day, only in Summer, lasting the whole day.
+    if location == "farm" and heatwave_day != day and season_for_day(day) == "Summer":
+        heatwave_day = day
+        heatwave_active = random.random() < HEATWAVE_CHANCE
+        if heatwave_active:
+            trigger_ambient_cue("🌡️ A heatwave settles in — crops will wither faster today.")
+    elif season_for_day(day) != "Summer":
+        heatwave_active = False
+
     #Bubbles: a rare rising bubble spawned from a random pond tile.
     if location == "farm" and water_shapes and random.random() < BUBBLE_CHANCE:
         shape = random.choice(water_shapes)
@@ -5594,7 +5610,8 @@ while running:
             elif state == "growing" and tile["timer"] >= grow_time:
                 tile["state"] = "grown"
                 tile["stage_anim"] = 0.0
-            elif state == "grown" and tile["timer"] >= grow_time + wither_time:
+            elif state == "grown" and tile["timer"] >= grow_time + wither_time * (
+                    HEATWAVE_WITHER_MULT if heatwave_active else 1.0):
                 tile["state"] = "withered"
                 tile["stage_anim"] = 0.0
 
@@ -6835,6 +6852,13 @@ while running:
         fog_surf = pygame.Surface((WIDTH, HEIGHT - UI_BAR_HEIGHT), pygame.SRCALPHA)
         fog_surf.fill((225, 225, 220, int(110 * fog_strength)))
         screen.blit(fog_surf, (0, 0))
+
+    #Heatwave: a faint warm orange wash over the daytime scene — the real
+    #effect (faster withering) lives in the crop-growth tick, not here.
+    if location == "farm" and heatwave_active and not is_night():
+        heat_surf = pygame.Surface((WIDTH, HEIGHT - UI_BAR_HEIGHT), pygame.SRCALPHA)
+        heat_surf.fill((250, 170, 60, 30))
+        screen.blit(heat_surf, (0, 0))
 
     #Aurora: a few soft, wavy translucent ribbons across the top of the
     #screen — winter-only, and rare even then.

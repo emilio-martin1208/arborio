@@ -1148,6 +1148,13 @@ def is_full_moon(d=None):
     return moon_phase_fraction(d) > 0.92
 
 
+#Lunar eclipse: on rare full-moon nights, the moon dims and reddens for the
+#rest of that night instead of glowing pale white.
+lunar_eclipse_active = False
+lunar_eclipse_day = None
+LUNAR_ECLIPSE_CHANCE = 0.15  # rolled once, the first time each full-moon night is detected
+
+
 def is_midnight(t=None):
     """The deep middle of the night stretch — for things rarer than the
     general is_night() ambience (a ghost lantern, not owls/crickets)."""
@@ -4512,6 +4519,17 @@ while running:
     elif location == "farm" and is_night() and is_full_moon() and random.random() < 0.0006:
         trigger_ambient_cue("🌕 A full moon lights up the night sky...")
 
+    #Lunar eclipse: decided once per full-moon night, the first time that
+    #night's checked — stays true/false for the rest of the night either way.
+    if location == "farm" and is_night() and is_full_moon():
+        if lunar_eclipse_day != day:
+            lunar_eclipse_day = day
+            lunar_eclipse_active = random.random() < LUNAR_ECLIPSE_CHANCE
+            if lunar_eclipse_active:
+                trigger_ambient_cue("🌑 A lunar eclipse creeps over the full moon...")
+    elif not is_night():
+        lunar_eclipse_active = False
+
     #Bubbles: a rare rising bubble spawned from a random pond tile.
     if location == "farm" and water_shapes and random.random() < BUBBLE_CHANCE:
         shape = random.choice(water_shapes)
@@ -6704,8 +6722,9 @@ while running:
         phase = moon_phase_fraction()
         moon_r = int(10 + 10 * phase)
         moon_alpha = int(90 + 140 * phase)
+        moon_color = (190, 70, 60) if lunar_eclipse_active else (235, 235, 210)
         moon_surf = pygame.Surface((moon_r * 2 + 4, moon_r * 2 + 4), pygame.SRCALPHA)
-        pygame.draw.circle(moon_surf, (235, 235, 210, moon_alpha), (moon_r + 2, moon_r + 2), moon_r)
+        pygame.draw.circle(moon_surf, (*moon_color, moon_alpha), (moon_r + 2, moon_r + 2), moon_r)
         screen.blit(moon_surf, (WIDTH - 60 - moon_r, 40 - moon_r))
 
     #Shooting stars: a bright head with a fading tail along its direction

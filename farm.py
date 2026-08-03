@@ -1056,10 +1056,12 @@ world_collectibles = []  # {x, y, kind, [life, max_life for temporary ones]}
 COLLECTIBLE_COLORS = {
     "four_leaf_clover": (60, 160, 70),
     "mushroom": (196, 84, 72),
+    "wild_berry": (150, 40, 110),
 }
 COLLECTIBLE_MESSAGES = {
     "four_leaf_clover": "A four-leaf clover! Lucky find (+15 emeralds).",
     "mushroom": "Picked a wild mushroom (+8 emeralds).",
+    "wild_berry": "Picked a handful of wild berries (+6 emeralds).",
 }
 MUSHROOM_LIFETIME = 90.0  # seconds before an uncollected post-rain mushroom withers
 
@@ -1105,6 +1107,8 @@ def collect_world_item(kind):
         emeralds += 15
     elif kind == "mushroom":
         emeralds += 8
+    elif kind == "wild_berry":
+        emeralds += 6
 
 #Tree spawn
 TREE_INTERVAL = 20.0
@@ -3088,6 +3092,7 @@ for (lake_x, lake_y) in big_lake_centers:
 generate_archipelago()
 
 spawn_collectible_scattered("four_leaf_clover", 50, biomes=("meadow", "maple"))
+spawn_collectible_scattered("wild_berry", 60, biomes=("jungle", "maple"))
 
 
 #Settlement counts scaled ~2.5x for the larger world, except kingdoms —
